@@ -1,18 +1,21 @@
-.PHONY: install up down run clean
+.PHONY: install-dev test lint format up-test
 
-install:
-	pip install -r requirements.txt
+install-dev:
+	pip install -r requirements.txt -r requirements-dev.txt
 
-up:
-	docker-compose up -d
+format:
+	black src plugins tests
 
-down:
-	docker-compose down
+lint:
+	black --check src plugins tests
+	flake8 src plugins tests
 
-run:
-	uvicorn src.app:app --host 0.0.0.0 --port 8000 --reload
+test-unit:
+	pytest tests/unit/ --cov=src --cov=plugins --cov-report=term-missing
 
-clean:
-	find . -type d -name "__pycache__" -exec rm -rf {} +
-	rm -f /tmp/firecracker-*.socket
-	rm -f /tmp/rootfs-*.ext4
+# Spins up the environment before running heavy integration tests
+test-integration:
+	docker-compose -f docker-compose.yml up -d
+	sleep 10 # Wait for OpenTelemetry collectors / databases to boot
+	pytest tests/integration/
+	docker-compose -f docker-compose.yml down
