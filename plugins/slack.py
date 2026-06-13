@@ -5,13 +5,14 @@ from plugins.base import MessagingPlugin
 
 logger = logging.getLogger("euroclaw.plugin.slack")
 
+
 class SlackPlugin(MessagingPlugin):
     def __init__(self):
         self.bot_token = os.getenv("SLACK_BOT_TOKEN")
         self.api_url = "https://slack.com/api/chat.postMessage"
         self.headers = {
             "Authorization": f"Bearer {self.bot_token}",
-            "Content-Type": "application/json; charset=utf-8"
+            "Content-Type": "application/json; charset=utf-8",
         }
 
     def connect(self):
@@ -20,15 +21,18 @@ class SlackPlugin(MessagingPlugin):
     def receive_message(self, raw_webhook_data: dict) -> dict:
         try:
             if "challenge" in raw_webhook_data:
-                return {"type": "url_verification", "challenge": raw_webhook_data["challenge"]}
+                return {
+                    "type": "url_verification",
+                    "challenge": raw_webhook_data["challenge"],
+                }
 
             event = raw_webhook_data.get("event", {})
             # Negeer berichten van bots om eindeloze loops te voorkomen
             if event.get("type") == "message" and not event.get("bot_id"):
                 return {
                     "source": "slack",
-                    "user_id": event.get("channel"), 
-                    "text": event.get("text")
+                    "user_id": event.get("channel"),
+                    "text": event.get("text"),
                 }
             return None
         except Exception as e:
