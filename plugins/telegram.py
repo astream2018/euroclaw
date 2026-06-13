@@ -24,5 +24,5 @@ class TelegramPlugin(MessagingPlugin):
 
     def send_message(self, user_id: str, text: str):
         requests.post(
-            f"{self.api_url}/sendMessage", json={"chat_id": user_id, "text": text}
+            f"{self.api_url}/sendMessage", json={"chat_id": user_id, "text": text}, timeout=10
         )
