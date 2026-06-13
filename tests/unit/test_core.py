@@ -4,7 +4,7 @@ import subprocess
 from unittest.mock import patch, MagicMock
 from src.sandbox_firecracker import FirecrackerMicroVM
 import requests.exceptions
-
+from src.orchestrator import execute_agent_tool
 
 # ==========================================
 # TEST CASES FOR FIRECRACKER MICROVM ERROR FLOW
@@ -83,3 +83,40 @@ def test_firecracker_teardown(mock_exists, mock_remove):
     
     vm.fc_process.kill.assert_called_once()
     assert mock_remove.call_count == 2
+
+@patch('src.orchestrator.WebIntelligencePlugin')
+def test_orchestrator_routes_web_search(MockWebPlugin):
+    """
+    Test that the orchestrator routes to the Web plugin correctly
+    without booting a hardware VM.
+    """
+    # Setup the mock to intercept the internet call
+    mock_instance = MockWebPlugin.return_value
+    mock_instance.search_internet.return_value = "Mocked Search Result"
+    
+    # Run the orchestrator with the web_search tool
+    result = execute_agent_tool("user_123", "search_internet", "EuroClaw framework")
+    
+    # Assert the plugin was triggered with the correct arguments
+    mock_instance.search_internet.assert_called_once_with(query="EuroClaw framework")
+    
+    # Assert the orchestrator returned the data correctly
+    assert result == "Mocked Search Result"
+
+@patch('src.orchestrator.FirecrackerMicroVM')
+def test_orchestrator_routes_unknown_tool_to_sandbox(MockVM):
+    """
+    Test that executing a code block correctly routes to the 
+    Firecracker hardware sandbox.
+    """
+    mock_vm_instance = MockVM.return_value
+    mock_vm_instance.execute_tool.return_value = "Code Executed in VM"
+    
+    # Run the orchestrator with a code execution tool
+    result = execute_agent_tool("user_123", "python_compiler", "print('hello')")
+    
+    # Assert the MicroVM was booted, executed, and torn down
+    mock_vm_instance.boot.assert_called_once()
+    mock_vm_instance.execute_tool.assert_called_once_with("python_compiler", "print('hello')")
+    mock_vm_instance.teardown.assert_called_once()
+    assert result == "Code Executed in VM"

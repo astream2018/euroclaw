@@ -8,10 +8,13 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
 from src.dag_visualizer import AgentDAGTracer
 from src.llm_gateway import SovereignLLMGateway
 from src.sandbox_firecracker import FirecrackerMicroVM
 from plugins.webhook_trigger import ExternalServicePlugin
+from plugins.web_search import WebIntelligencePlugin
+from plugins.local_files import LocalFileSystemPlugin
 
 logger = logging.getLogger("euroclaw.orchestrator")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -26,7 +29,7 @@ trace.get_tracer_provider().add_span_processor(
 r = redis.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=6379, decode_responses=True)
 gateway = SovereignLLMGateway()
 
-HIGH_RISK_TOOLS = ["execute_bash", "delete_database", "send_external_email"]
+HIGH_RISK_TOOLS = ["execute_bash", "delete_database", "send_external_email", "request_telegram_approval"]
 
 def request_human_approval(task_id: str, user_id: str, tool_name: str, arguments: str):
     task_payload = {
@@ -51,60 +54,84 @@ def wait_for_approval(task_id: str, timeout: int = 300) -> bool:
     return False
 
 def execute_agent_tool(user_id: str, tool_name: str, arguments: str) -> str:
-    # Use a shorter UUID for cleaner visual graphs
+    """Unified routing for local plugins, webhooks, and hardware sandboxing."""
     task_id = str(uuid.uuid4())[:8] 
     
-    # 1. Initialize the DAG Tracer for this execution
     dag = AgentDAGTracer(task_id=task_id)
     dag.add_step("AgentOrchestrator", "ToolExecutor", f"Requested: {tool_name}")
     
-    if tool_name in HIGH_RISK_TOOLS:
-        dag.add_step("ToolExecutor", "HumanSupervisor", "Triggered HITL Checkpoint")
-        
-        with tracer.start_as_current_span("hitl_human_checkpoint") as span:
-            span.set_attribute("euroclaw.hitl.task_id", task_id)
-            span.set_attribute("euroclaw.hitl.tool", tool_name)
-            request_human_approval(task_id, user_id, tool_name, arguments)
+    try:
+        # --- 1. WEB INTELLIGENCE PLUGINS ---
+        if tool_name == "search_internet":
+            dag.add_step("ToolExecutor", "WebPlugin", "Executing DuckDuckGo Search")
+            plugin = WebIntelligencePlugin()
+            return plugin.search_internet(query=arguments)
             
-            if not wait_for_approval(task_id):
-                span.set_attribute("euroclaw.hitl.result", "DENIED")
-                dag.add_step("HumanSupervisor", "AgentOrchestrator", "Execution DENIED")
-                
-                # Export the graph before returning the error
-                md_file = dag.export_to_markdown()
-                logger.info(f"[AUDIT] DAG saved to {md_file}")
-                return "ERROR: Action rejected by infrastructure supervisor policy rules."
-                
-            span.set_attribute("euroclaw.hitl.result", "APPROVED")
-            dag.add_step("HumanSupervisor", "ToolExecutor", "Execution APPROVED")
+        elif tool_name == "scrape_website":
+            dag.add_step("ToolExecutor", "WebPlugin", "Scraping URL Content")
+            plugin = WebIntelligencePlugin()
+            return plugin.scrape_website(url=arguments)
 
-    with tracer.start_as_current_span("sandbox_execution") as span:
-        span.set_attribute("euroclaw.sandbox.isolation", "firecracker_microvm")
-        span.set_attribute("euroclaw.sandbox.task_id", task_id)
-        
-        dag.add_step("ToolExecutor", "FirecrackerMicroVM", "Booting Hardware Sandbox")
-        vm = FirecrackerMicroVM(task_id=task_id)
-        
-        try:
-            vm.boot()
-            result = vm.execute_tool(tool_name, arguments)
-            dag.add_step("FirecrackerMicroVM", "AgentOrchestrator", "Tool Execution Success")
-            return result
-        except Exception as e:
-            span.set_status(trace.StatusCode.ERROR, description=str(e))
-            dag.add_step("FirecrackerMicroVM", "AgentOrchestrator", "Tool Execution FAILED")
-            return f"ERROR: Tool execution failed inside secure boundary. Reason: {e}"
-        finally:
-            vm.teardown()
-            # 2. Export the final execution flow diagram
-            md_file = dag.export_to_markdown()
-            logger.info(f"[AUDIT] DAG saved to {md_file}")
+        # --- 2. LOCAL RAG / FILE SYSTEM PLUGIN ---
+        elif tool_name == "read_file":
+            dag.add_step("ToolExecutor", "FileSystemPlugin", "Reading Local File")
+            allowed_dirs = os.getenv("ALLOWED_WORKSPACES", "")
+            plugin = LocalFileSystemPlugin(allowed_directories_env=allowed_dirs)
+            return plugin.read_file(file_path=arguments)
+
+        # --- 3. EXTERNAL WEBHOOKS ---
+        elif tool_name == "notify_external_service":
+            dag.add_step("ToolExecutor", "WebhookPlugin", "Triggering External API")
+            target_url = os.getenv("EXTERNAL_WEBHOOK_URL")
+            if not target_url:
+                return "ERROR: EXTERNAL_WEBHOOK_URL is not configured in the environment."
+            plugin = ExternalServicePlugin(target_url=target_url)
+            return plugin.trigger_service(payload={"data": arguments})
+
+        # --- 4. HUMAN-IN-THE-LOOP (HITL) CHECKPOINT ---
+        if tool_name in HIGH_RISK_TOOLS:
+            dag.add_step("ToolExecutor", "HumanSupervisor", "Triggered HITL Checkpoint")
+            
+            with tracer.start_as_current_span("hitl_human_checkpoint") as span:
+                span.set_attribute("euroclaw.hitl.task_id", task_id)
+                span.set_attribute("euroclaw.hitl.tool", tool_name)
+                request_human_approval(task_id, user_id, tool_name, arguments)
+                
+                if not wait_for_approval(task_id):
+                    span.set_attribute("euroclaw.hitl.result", "DENIED")
+                    dag.add_step("HumanSupervisor", "AgentOrchestrator", "Execution DENIED")
+                    return "ERROR: Action rejected by infrastructure supervisor policy rules."
+                    
+                span.set_attribute("euroclaw.hitl.result", "APPROVED")
+                dag.add_step("HumanSupervisor", "ToolExecutor", "Execution APPROVED")
+
+        # --- 5. HARDWARE SANDBOX (Catch-all for executing code/bash) ---
+        with tracer.start_as_current_span("sandbox_execution") as span:
+            span.set_attribute("euroclaw.sandbox.isolation", "firecracker_microvm")
+            span.set_attribute("euroclaw.sandbox.task_id", task_id)
+            
+            dag.add_step("ToolExecutor", "FirecrackerMicroVM", "Booting Hardware Sandbox")
+            vm = FirecrackerMicroVM(task_id=task_id)
+            
+            try:
+                vm.boot()
+                result = vm.execute_tool(tool_name, arguments)
+                dag.add_step("FirecrackerMicroVM", "AgentOrchestrator", "Tool Execution Success")
+                return result
+            except Exception as e:
+                span.set_status(trace.StatusCode.ERROR, description=str(e))
+                dag.add_step("FirecrackerMicroVM", "AgentOrchestrator", "Tool Execution FAILED")
+                return f"ERROR: Tool execution failed inside secure boundary. Reason: {e}"
+            finally:
+                vm.teardown()
+
+    finally:
+        # Guarantee the visual DAG is exported regardless of success or failure
+        md_file = dag.export_to_markdown()
+        logger.info(f"[AUDIT] DAG saved to {md_file}")
 
 def process_inbound_message(message_payload: dict) -> str:
     user_id = message_payload.get("user_id", "unknown")
-    
-    # Optional: You can also initialize a DAG tracer here if you want to map 
-    # the LLM reasoning phase before it even hits the tool executor.
     
     with tracer.start_as_current_span("agent_reasoning_loop") as parent_span:
         parent_span.set_attribute("euroclaw.user_id", user_id)
@@ -118,21 +145,3 @@ def process_inbound_message(message_payload: dict) -> str:
             response = gateway.query_model(prompt=message_payload["text"], system_instruction=system_prompt)
             
         return response
-
-
-def execute_agent_tool(user_id: str, tool_name: str, arguments: str) -> str:
-    # ... (your existing HITL and Firecracker routing logic) ...
-    
-    if tool_name == "notify_external_service":
-        # Pull the URL securely from the environment
-        target_url = os.getenv("EXTERNAL_WEBHOOK_URL")
-        
-        # Fallback check to prevent crashes if the .env variable is missing
-        if not target_url:
-            return "ERROR: EXTERNAL_WEBHOOK_URL is not configured in the environment."
-            
-        plugin = ExternalServicePlugin(target_url=target_url)
-        
-        # Pass the data out securely
-        result = plugin.trigger_service(payload={"data": arguments})
-        return result
