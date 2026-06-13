@@ -9,63 +9,61 @@ on:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
+      
     - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
         cache: "pip"
-
+        
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         make install-dev
-
+        
     - name: Lint Code
       run: make lint
-
+      
     - name: Run Bandit Security Scan
       run: |
         pip install bandit
         bandit -r src/ plugins/
-
+        
     - name: Run Unit Tests
       run: make test-unit
-
+      
     - name: Run Integration Tests
       run: |
         # Copies the example env to a real .env for the docker-compose build
         cp .env_example .env
         make test-integration
-                
-generate-architecture:
+
+  generate-architecture:
     runs-on: ubuntu-latest
     needs: lint-and-test # Only generate docs if the code actually passes tests
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0 # Required to push changes back
-
+        
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-
+        
     - name: Install Graphviz & Dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y graphviz
         pip install diagrams
-
+        
     - name: Generate Architecture Diagram
       run: python docs/generate_architecture.py
-
+      
     - name: Commit and Push Changes
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
