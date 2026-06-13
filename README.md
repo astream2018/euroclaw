@@ -29,3 +29,11 @@ EuroClaw wasn't built just to be another AI wrapper; it was engineered from the 
 
 Rename `.env_example` to  `.env`  in your root directory to configure the core infrastructure, OIDC security, and enterprise messaging plugins.
 
+```bash
+# Create the .env en update the file 
+git clone https://github.com/astream2018/euroclaw.git
+cd euroclaw
+cp .env_example .env
+# Install Python packages pip install 
+pip install requirements.txt -r
+```

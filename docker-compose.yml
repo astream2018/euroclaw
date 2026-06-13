@@ -9,8 +9,9 @@ services:
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
-      - "16686:16686"
-      - "4317:4317"
+      - "16686:16686" # UI
+      - "4317:4317"   # gRPC receiver
+      - "4318:4318"   # HTTP receiver
 
   keycloak:
     image: quay.io/keycloak/keycloak:latest
