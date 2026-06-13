@@ -8,11 +8,10 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-
-# --- ADDED THE DAG VISUALIZER IMPORT ---
 from src.dag_visualizer import AgentDAGTracer
 from src.llm_gateway import SovereignLLMGateway
 from src.sandbox_firecracker import FirecrackerMicroVM
+from plugins.webhook_trigger import ExternalServicePlugin
 
 logger = logging.getLogger("euroclaw.orchestrator")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -119,3 +118,21 @@ def process_inbound_message(message_payload: dict) -> str:
             response = gateway.query_model(prompt=message_payload["text"], system_instruction=system_prompt)
             
         return response
+
+
+def execute_agent_tool(user_id: str, tool_name: str, arguments: str) -> str:
+    # ... (your existing HITL and Firecracker routing logic) ...
+    
+    if tool_name == "notify_external_service":
+        # Pull the URL securely from the environment
+        target_url = os.getenv("EXTERNAL_WEBHOOK_URL")
+        
+        # Fallback check to prevent crashes if the .env variable is missing
+        if not target_url:
+            return "ERROR: EXTERNAL_WEBHOOK_URL is not configured in the environment."
+            
+        plugin = ExternalServicePlugin(target_url=target_url)
+        
+        # Pass the data out securely
+        result = plugin.trigger_service(payload={"data": arguments})
+        return result
