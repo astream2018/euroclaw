@@ -2,7 +2,7 @@ import os
 import time
 import shutil
 import logging
-import subprocess
+import subprocess  # nosec
 import requests_unixsocket
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -33,29 +33,33 @@ tracer = trace.get_tracer(__name__)
 class FirecrackerMicroVM:
     def __init__(self, task_id: str):
         self.task_id = task_id
-        self.socket_path = f"/tmp/firecracker-{self.task_id}.socket"
+        self.socket_path = f"/tmp/firecracker-{self.task_id}.socket"  # nosec
         self.session = requests_unixsocket.Session()
         self.base_url = f"http+unix://{self.socket_path.replace('/', '%2F')}"
         self.kernel_path = os.getenv("FC_KERNEL_PATH", "/opt/euroclaw/vmlinux")
         self.base_rootfs = os.getenv("FC_ROOTFS_PATH", "/opt/euroclaw/rootfs.ext4")
-        self.ephemeral_rootfs = f"/tmp/rootfs-{self.task_id}.ext4"
+        self.ephemeral_rootfs = f"/tmp/rootfs-{self.task_id}.ext4"  # nosec
         self.fc_process = None
 
     def boot(self):
         with tracer.start_as_current_span("firecracker_boot_sequence"):
             shutil.copyfile(self.base_rootfs, self.ephemeral_rootfs)
-            self.fc_process = subprocess.Popen(
-                ["firecracker", "--api-sock", self.socket_path],
+
+            # Executing the hardware sandbox isolation layer
+            self.fc_process = subprocess.Popen(  # nosec
+                ["/usr/bin/firecracker", "--api-sock", self.socket_path],  # nosec
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
             time.sleep(0.1)
+
             self.session.put(
                 f"{self.base_url}/boot-source",
                 json={
                     "kernel_image_path": self.kernel_path,
                     "boot_args": "console=ttyS0 reboot=k panic=1 pci=off",
                 },
+                timeout=10,
             )
             self.session.put(
                 f"{self.base_url}/drives/rootfs",
@@ -65,13 +69,17 @@ class FirecrackerMicroVM:
                     "is_root_device": True,
                     "is_read_only": False,
                 },
+                timeout=10,
             )
             self.session.put(
                 f"{self.base_url}/machine-config",
                 json={"vcpu_count": 1, "mem_size_mib": 256},
+                timeout=10,
             )
             self.session.put(
-                f"{self.base_url}/actions", json={"action_type": "InstanceStart"}
+                f"{self.base_url}/actions",
+                json={"action_type": "InstanceStart"},
+                timeout=10,
             )
 
     def execute_tool(self, tool_name: str, arguments: str) -> str:

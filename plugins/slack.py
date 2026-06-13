@@ -41,5 +41,7 @@ class SlackPlugin(MessagingPlugin):
 
     def send_message(self, user_id: str, text: str):
         payload = {"channel": user_id, "text": text}
-        response = requests.post(self.api_url, headers=self.headers, json=payload)
+        response = requests.post(
+            self.api_url, headers=self.headers, json=payload, timeout=10
+        )
         response.raise_for_status()
