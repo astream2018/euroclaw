@@ -1,7 +1,9 @@
 import os
 import requests
+import opentelemetry.trace as trace
 
-# ... (existing imports)
+
+tracer = trace.get_tracer(__name__)
 
 
 class ExternalServicePlugin:
