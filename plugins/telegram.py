@@ -1,7 +1,9 @@
 import os
+import logging
 import requests
 from plugins.base import MessagingPlugin
 
+logger = logging.getLogger("euroclaw.plugins.telegram")
 
 class TelegramPlugin(MessagingPlugin):
     def __init__(self):
@@ -23,6 +25,12 @@ class TelegramPlugin(MessagingPlugin):
             return None
 
     def send_message(self, user_id: str, text: str):
-        requests.post(
-            f"{self.api_url}/sendMessage", json={"chat_id": user_id, "text": text}, timeout=10
-        )
+        try:
+            response = requests.post(
+                f"{self.api_url}/sendMessage", 
+                json={"chat_id": user_id, "text": text}, 
+                timeout=10
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"[TelegramPlugin] Failed to send message to {user_id}: {e}")
