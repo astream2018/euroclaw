@@ -5,6 +5,24 @@ import logging
 import subprocess
 import requests_unixsocket
 from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+
+def configure_telemetry():
+    """Configures OpenTelemetry to send traces to the local Jaeger instance."""
+    # UI
+    resource = Resource.create({"service.name": "euroclaw-firecracker-sandbox"})
+    provider = TracerProvider(resource=resource)
+    
+    # Configure the exporter to send data to the Docker container on port 4318
+    otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces")
+    provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+    
+    trace.set_tracer_provider(provider)
+
+configure_telemetry()
 
 logger = logging.getLogger("euroclaw.sandbox.firecracker")
 tracer = trace.get_tracer(__name__)
