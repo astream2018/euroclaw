@@ -38,4 +38,5 @@ class WhatsAppPlugin(MessagingPlugin):
                 "to": user_id,
                 "text": {"body": text},
             },
+            timeout=10,
         )

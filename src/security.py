@@ -19,7 +19,7 @@ oauth2_scheme = OAuth2AuthorizationCodeBearer(
 def get_public_keys():
     try:
         jwks_uri = f"{OIDC_ISSUER}/protocol/openid-connect/certs"
-        response = requests.get(jwks_uri)
+        response = requests.get(jwks_uri, timeout=10)
         response.raise_for_status()
         return response.json()
     except Exception as e:
