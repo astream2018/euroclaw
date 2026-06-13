@@ -24,6 +24,7 @@ __pycache__/
 *.db
 /logs/
 *.log
+audit_logs/
 
 # Firecracker artifacts
 *.ext4
