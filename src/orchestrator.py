@@ -16,6 +16,7 @@ from src.sandbox_firecracker import FirecrackerMicroVM
 from plugins.webhook_trigger import ExternalServicePlugin
 from plugins.web_search import WebIntelligencePlugin
 from plugins.local_files import LocalFileSystemPlugin
+from plugins.mcp_client import ModelContextProtocolPlugin
 
 logger = logging.getLogger("euroclaw.orchestrator")
 logging.basicConfig(
@@ -132,7 +133,36 @@ def execute_agent_tool(user_id: str, tool_name: str, arguments: str) -> str:
                 span.set_attribute("euroclaw.hitl.result", "APPROVED")
                 dag.add_step("HumanSupervisor", "ToolExecutor", "Execution APPROVED")
 
-        # --- 5. HARDWARE SANDBOX (Catch-all for executing code/bash) ---
+        # --- 5. MODEL CONTEXT PROTOCOL (MCP) INTEGRATION ---
+        elif tool_name == "query_database_mcp":
+            dag.add_step(
+                "ToolExecutor", "MCPClientPlugin", "Connecting to MCP Stdio Server"
+            )
+
+            with tracer.start_as_current_span("mcp_server_execution") as span:
+                span.set_attribute("euroclaw.mcp.tool", tool_name)
+
+                # Example: Connecting to the official Postgres MCP server via npx
+                # Make sure the environment running the worker has npx installed
+                mcp_plugin = ModelContextProtocolPlugin(
+                    server_command="npx",
+                    server_args=[
+                        "-y",
+                        "@modelcontextprotocol/server-postgres",
+                        os.getenv("DATABASE_URL", "postgresql://localhost/mydb"),
+                    ],
+                )
+
+                result = mcp_plugin.execute_mcp_tool(
+                    tool_name="query_database", arguments_json=arguments
+                )
+
+                dag.add_step(
+                    "MCPClientPlugin", "AgentOrchestrator", "MCP Task Completed"
+                )
+                return result
+
+        # --- 6. HARDWARE SANDBOX (Catch-all for executing code/bash) ---
         with tracer.start_as_current_span("sandbox_execution") as span:
             span.set_attribute("euroclaw.sandbox.isolation", "firecracker_microvm")
             span.set_attribute("euroclaw.sandbox.task_id", task_id)
