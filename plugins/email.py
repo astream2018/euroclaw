@@ -5,6 +5,7 @@ import email
 from email.mime.text import MIMEText
 from plugins.base import MessagingPlugin
 
+
 class EmailPlugin(MessagingPlugin):
     def __init__(self):
         self.email_address = os.getenv("EUROCLAW_EMAIL")
@@ -19,21 +20,27 @@ class EmailPlugin(MessagingPlugin):
     def receive_message(self, mailbox="inbox") -> list:
         parsed_messages = []
         self.mail.select(mailbox)
-        status, messages = self.mail.search(None, '(UNSEEN)')
+        status, messages = self.mail.search(None, "(UNSEEN)")
         for num in messages[0].split():
-            status, data = self.mail.fetch(num, '(RFC822)')
+            status, data = self.mail.fetch(num, "(RFC822)")
             msg = email.message_from_bytes(data[0][1])
-            body = msg.get_payload(decode=True).decode() if not msg.is_multipart() else ""
-            parsed_messages.append({
-                "source": "email", "user_id": msg.get("Reply-To", msg.get("From")), "text": body.strip()
-            })
+            body = (
+                msg.get_payload(decode=True).decode() if not msg.is_multipart() else ""
+            )
+            parsed_messages.append(
+                {
+                    "source": "email",
+                    "user_id": msg.get("Reply-To", msg.get("From")),
+                    "text": body.strip(),
+                }
+            )
         return parsed_messages
 
     def send_message(self, user_id: str, text: str):
         msg = MIMEText(text)
-        msg['Subject'] = "Re: EuroClaw Automated Architecture Execution Audit"
-        msg['From'] = self.email_address
-        msg['To'] = user_id
+        msg["Subject"] = "Re: EuroClaw Automated Architecture Execution Audit"
+        msg["From"] = self.email_address
+        msg["To"] = user_id
         with smtplib.SMTP_SSL(self.smtp_server) as server:
             server.login(self.email_address, self.password)
             server.send_message(msg)
