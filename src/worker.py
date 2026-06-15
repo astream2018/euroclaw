@@ -20,9 +20,9 @@ def execute_remote_tool(self, user_id: str, tool_name: str, arguments: str) -> s
     This function physically executes on whichever server picks it up from the queue.
     """
     logger.info(f"[WORKER] Picked up task {self.request.id}: {tool_name}")
-    
     # Run the exact same secure execution logic you already built
-    result = execute_agent_tool(user_id=user_id, tool_name=tool_name, arguments=arguments)
-    
+    result = execute_agent_tool(
+        user_id=user_id, tool_name=tool_name, arguments=arguments
+    )
     logger.info(f"[WORKER] Completed task {self.request.id}.")
     return result

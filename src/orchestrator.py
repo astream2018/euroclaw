@@ -179,21 +179,20 @@ def dispatch_agent_tool(user_id: str, tool_name: str, arguments: str) -> str:
 
     elif execution_mode == "distributed":
         logger.info(f"[DISTRIBUTED MODE] Dispatching {tool_name} to worker queue.")
-        
         # Send the task to Redis without requiring a hard import of the worker file
         async_task = celery_app.send_task(
-            "execute_remote_tool", 
-            args=[user_id, tool_name, arguments]
+            "execute_remote_tool", args=[user_id, tool_name, arguments]
         )
-        
-        logger.info(f"[DISTRIBUTED MODE] Task {async_task.id} queued. Waiting for remote server...")
-        
-        try:
-            # Wait for the remote server to finish and return the actual data
+        logger.info(
+            f"[DISTRIBUTED MODE] Task {async_task.id} queued. Waiting for remote server..."
+        )
+        try:  # Wait for the remote server to finish and return the actual data
             result = async_task.get(timeout=300)
             return result
         except Exception as e:
-            logger.error(f"[DISTRIBUTED MODE] Remote execution failed or timed out: {e}")
+            logger.error(
+                f"[DISTRIBUTED MODE] Remote execution failed or timed out: {e}"
+            )
             return f"ERROR: Remote worker failed to complete task. Reason: {e}"
 
 
