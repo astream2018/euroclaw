@@ -27,7 +27,7 @@ class ModelContextProtocolPlugin:
         server_params = StdioServerParameters(
             command=self.server_command,
             args=self.server_args,
-            env=None, # Inherits current environment variables securely
+            env=None,  # Inherits current environment variables securely
         )
 
         try:
@@ -35,15 +35,15 @@ class ModelContextProtocolPlugin:
                 async with ClientSession(read, write) as session:
                     # Initialize connection with the MCP Server
                     await session.initialize()
-                    
+
                     # Execute the requested tool on the MCP server
                     result = await session.call_tool(tool_name, arguments)
-                    
+
                     # MCP returns a list of content blocks, we extract the text
                     if result.content and len(result.content) > 0:
                         return result.content[0].text
                     return "MCP Execution Success: No content returned."
-                    
+
         except Exception as e:
             logger.error(f"[MCP Plugin] Async execution failed: {e}")
             raise
@@ -55,11 +55,11 @@ class ModelContextProtocolPlugin:
         try:
             # Parse the stringified JSON arguments from the LLM
             args_dict = json.loads(arguments_json) if arguments_json else {}
-            
+
             # Block the current thread to run the async MCP lifecycle
             result = asyncio.run(self._execute_mcp_request(tool_name, args_dict))
             return result
-            
+
         except json.JSONDecodeError:
             return "ERROR: Invalid JSON arguments provided to MCP tool."
         except Exception as e:
