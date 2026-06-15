@@ -67,8 +67,7 @@ protobuf==4.25.9
 pyasn1==0.6.3
 pycodestyle==2.11.1
 pycparser==3.0
-pydantic==2.7.0
-pydantic_core==2.18.1
+pydantic>=2.13.4
 pyflakes==3.2.0
 Pygments==2.20.0
 pytest==8.2.0
