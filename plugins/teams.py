@@ -23,7 +23,7 @@ class TeamsPlugin(MessagingPlugin):
             "client_secret": self.app_password,
             "scope": "https://api.botframework.com/.default",
         }
-        response = requests.post(url, data=data)
+        response = requests.post(url, data=data, timeout=10)
         response.raise_for_status()
         return response.json()["access_token"]
 
@@ -60,7 +60,7 @@ class TeamsPlugin(MessagingPlugin):
             }
             payload = {"type": "message", "text": text}
 
-            response = requests.post(url, headers=headers, json=payload)
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
             response.raise_for_status()
             logger.info("Successfully dispatched message trace back to MS Teams.")
 
