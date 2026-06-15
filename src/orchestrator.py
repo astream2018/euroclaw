@@ -4,6 +4,7 @@ import uuid
 import json
 import logging
 import redis
+from celery import Celery
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -32,6 +33,11 @@ r = redis.Redis(
     host=os.getenv("REDIS_HOST", "localhost"), port=6379, decode_responses=True
 )
 gateway = SovereignLLMGateway()
+
+# --- DISTRIBUTED WORKER CONFIGURATION ---
+redis_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+backend_url = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
+celery_app = Celery("euroclaw_dispatch", broker=redis_url, backend=backend_url)
 
 HIGH_RISK_TOOLS = [
     "execute_bash",
@@ -160,6 +166,37 @@ def execute_agent_tool(user_id: str, tool_name: str, arguments: str) -> str:
         logger.info(f"[AUDIT] DAG saved to {md_file}")
 
 
+def dispatch_agent_tool(user_id: str, tool_name: str, arguments: str) -> str:
+    """
+    The main routing switch. Decides whether to execute code on this machine
+    or send it to the distributed server cluster.
+    """
+    execution_mode = os.getenv("EXECUTION_MODE", "local").lower()
+
+    if execution_mode == "local":
+        logger.info(f"[LOCAL MODE] Executing {tool_name} directly on this server.")
+        return execute_agent_tool(user_id, tool_name, arguments)
+
+    elif execution_mode == "distributed":
+        logger.info(f"[DISTRIBUTED MODE] Dispatching {tool_name} to worker queue.")
+        
+        # Send the task to Redis without requiring a hard import of the worker file
+        async_task = celery_app.send_task(
+            "execute_remote_tool", 
+            args=[user_id, tool_name, arguments]
+        )
+        
+        logger.info(f"[DISTRIBUTED MODE] Task {async_task.id} queued. Waiting for remote server...")
+        
+        try:
+            # Wait for the remote server to finish and return the actual data
+            result = async_task.get(timeout=300)
+            return result
+        except Exception as e:
+            logger.error(f"[DISTRIBUTED MODE] Remote execution failed or timed out: {e}")
+            return f"ERROR: Remote worker failed to complete task. Reason: {e}"
+
+
 def process_inbound_message(message_payload: dict) -> str:
     user_id = message_payload.get("user_id", "unknown")
 
@@ -176,4 +213,6 @@ def process_inbound_message(message_payload: dict) -> str:
                 prompt=message_payload["text"], system_instruction=system_prompt
             )
 
+        # In a fully connected flow, you parse 'response' here to find the tool_name and arguments
+        # and then call: dispatch_agent_tool(user_id, tool_name, arguments)
         return response
