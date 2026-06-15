@@ -54,7 +54,7 @@ def test_firecracker_boot(mock_copyfile, mock_popen, mock_session_class):
     mock_copyfile.assert_called_once_with(vm.base_rootfs, vm.ephemeral_rootfs)
 
     mock_popen.assert_called_once_with(
-        ["firecracker", "--api-sock", vm.socket_path],
+        ["/usr/bin/firecracker", "--api-sock", vm.socket_path],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
