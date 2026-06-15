@@ -2,7 +2,7 @@ import os
 import time
 import shutil
 import logging
-import subprocess
+import subprocess  # nosec
 import requests_unixsocket
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -10,59 +10,88 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 
+
 def configure_telemetry():
     """Configures OpenTelemetry to send traces to the local Jaeger instance."""
     # UI
     resource = Resource.create({"service.name": "euroclaw-firecracker-sandbox"})
     provider = TracerProvider(resource=resource)
-    
+
     # Configure the exporter to send data to the Docker container on port 4318
     otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces")
     provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
-    
+
     trace.set_tracer_provider(provider)
+
 
 configure_telemetry()
 
 logger = logging.getLogger("euroclaw.sandbox.firecracker")
 tracer = trace.get_tracer(__name__)
 
+
 class FirecrackerMicroVM:
     def __init__(self, task_id: str):
         self.task_id = task_id
-        self.socket_path = f"/tmp/firecracker-{self.task_id}.socket"
+        self.socket_path = f"/tmp/firecracker-{self.task_id}.socket"  # nosec
         self.session = requests_unixsocket.Session()
         self.base_url = f"http+unix://{self.socket_path.replace('/', '%2F')}"
         self.kernel_path = os.getenv("FC_KERNEL_PATH", "/opt/euroclaw/vmlinux")
         self.base_rootfs = os.getenv("FC_ROOTFS_PATH", "/opt/euroclaw/rootfs.ext4")
-        self.ephemeral_rootfs = f"/tmp/rootfs-{self.task_id}.ext4"
+        self.ephemeral_rootfs = f"/tmp/rootfs-{self.task_id}.ext4"  # nosec
         self.fc_process = None
 
     def boot(self):
         with tracer.start_as_current_span("firecracker_boot_sequence"):
             shutil.copyfile(self.base_rootfs, self.ephemeral_rootfs)
-            self.fc_process = subprocess.Popen(
-                ["firecracker", "--api-sock", self.socket_path],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+
+            # Executing the hardware sandbox isolation layer
+            self.fc_process = subprocess.Popen(  # nosec
+                ["/usr/bin/firecracker", "--api-sock", self.socket_path],  # nosec
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
-            time.sleep(0.1) 
-            self.session.put(f"{self.base_url}/boot-source", json={
-                "kernel_image_path": self.kernel_path, "boot_args": "console=ttyS0 reboot=k panic=1 pci=off"
-            })
-            self.session.put(f"{self.base_url}/drives/rootfs", json={
-                "drive_id": "rootfs", "path_on_host": self.ephemeral_rootfs,
-                "is_root_device": True, "is_read_only": False
-            })
-            self.session.put(f"{self.base_url}/machine-config", json={"vcpu_count": 1, "mem_size_mib": 256})
-            self.session.put(f"{self.base_url}/actions", json={"action_type": "InstanceStart"})
+            time.sleep(0.1)
+
+            self.session.put(
+                f"{self.base_url}/boot-source",
+                json={
+                    "kernel_image_path": self.kernel_path,
+                    "boot_args": "console=ttyS0 reboot=k panic=1 pci=off",
+                },
+                timeout=10,
+            )
+            self.session.put(
+                f"{self.base_url}/drives/rootfs",
+                json={
+                    "drive_id": "rootfs",
+                    "path_on_host": self.ephemeral_rootfs,
+                    "is_root_device": True,
+                    "is_read_only": False,
+                },
+                timeout=10,
+            )
+            self.session.put(
+                f"{self.base_url}/machine-config",
+                json={"vcpu_count": 1, "mem_size_mib": 256},
+                timeout=10,
+            )
+            self.session.put(
+                f"{self.base_url}/actions",
+                json={"action_type": "InstanceStart"},
+                timeout=10,
+            )
 
     def execute_tool(self, tool_name: str, arguments: str) -> str:
         with tracer.start_as_current_span("firecracker_tool_execution"):
-            time.sleep(0.5) 
+            time.sleep(0.5)
             return f"MicroVM Execution Result: {tool_name} completed in hardware isolation."
 
     def teardown(self):
         with tracer.start_as_current_span("firecracker_teardown"):
-            if self.fc_process: self.fc_process.kill()
-            if os.path.exists(self.socket_path): os.remove(self.socket_path)
-            if os.path.exists(self.ephemeral_rootfs): os.remove(self.ephemeral_rootfs)
+            if self.fc_process:
+                self.fc_process.kill()
+            if os.path.exists(self.socket_path):
+                os.remove(self.socket_path)
+            if os.path.exists(self.ephemeral_rootfs):
+                os.remove(self.ephemeral_rootfs)

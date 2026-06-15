@@ -1,0 +1,29 @@
+repos:
+  # 1. Standard Git Fixers (Removes trailing whitespace, fixes empty lines at EOF)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+
+  # 2. Black: The uncompromising code formatter
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+
+  # 3. Flake8: Style and Syntax checker
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        additional_dependencies: [flake8-bugbear]
+
+  # 4. Bandit: The Python Security Scanner
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.8
+    hooks:
+      - id: bandit
+        args: ["-r", "-ll"]
+        exclude: ^tests/

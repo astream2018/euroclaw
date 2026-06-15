@@ -15,7 +15,7 @@ Currently, only the `main` branch and tagged releases from `v1.0.0` onwards are 
 
 **Do not report security vulnerabilities through public GitHub issues.**
 
-If you believe you have found a security vulnerability in EuroClaw, please report it to us directly at **security@yourdomain.com**. 
+If you believe you have found a security vulnerability in EuroClaw, please report it to us directly at **security@yourdomain.com**.
 
 Please include:
 * The type of vulnerability (e.g., Prompt Injection bypassing RBAC, Sandbox escape).
