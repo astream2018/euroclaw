@@ -13,6 +13,7 @@ backend_url = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
 
 celery_app = Celery("euroclaw_workers", broker=redis_url, backend=backend_url)
 
+
 @celery_app.task(name="execute_remote_tool", bind=True)
 def execute_remote_tool(self, user_id: str, tool_name: str, arguments: str) -> str:
     """
