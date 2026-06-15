@@ -1,6 +1,7 @@
 import os
 import redis
 
+
 def test_redis_connection():
     """
     Verifies that the docker-compose infrastructure booted successfully
@@ -11,6 +12,6 @@ def test_redis_connection():
 
     # Attempt to connect to the newly spun up Redis container
     r = redis.Redis(host=redis_host, port=6379, db=0)
-    
+
     # Ping the server. If it responds, the integration environment is healthy!
     assert r.ping() is True
