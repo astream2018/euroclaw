@@ -3,7 +3,7 @@ line-length = 88
 
 [tool.flake8]
 max-line-length = 88
-extend-ignore = ["E203", "W503"]
+extend-ignore = ["E203", "W503", "B008"]
 
 [tool.bandit]
 exclude_dirs = ["tests"]

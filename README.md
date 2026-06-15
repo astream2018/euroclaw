@@ -1,6 +1,6 @@
 # 🇪🇺 EuroClaw
 
-EuroClaw is an open-source, enterprise-grade agentic AI framework engineered for **absolute data sovereignty, zero-trust security, horizontal scalability, and operational flexibility**. 
+EuroClaw is an open-source, enterprise-grade agentic AI framework engineered for **absolute data sovereignty, zero-trust security, horizontal scalability, and operational flexibility**.
 
 Designed to adhere strictly to European compliance and privacy boundaries, EuroClaw decouples your workflows from third-party US-hosted cloud dependencies.
 
@@ -11,7 +11,7 @@ Designed to adhere strictly to European compliance and privacy boundaries, EuroC
 ## 🛡️ Why EuroClaw? (The Mission)
 EuroClaw wasn't built just to be another AI wrapper; it was engineered from the ground up to solve the critical adoption blockers faced by European enterprises, governments, and healthcare providers.
 
-* **EU AI Act Compliance Built-In:** OpenTelemetry (OTel) logs every single LLM reasoning cycle and sandbox execution as an immutable trace. 
+* **EU AI Act Compliance Built-In:** OpenTelemetry (OTel) logs every single LLM reasoning cycle and sandbox execution as an immutable trace.
 * **True Air-Gapped Sovereignty:** Routes reasoning exclusively through local models and executes tools in zero-trust microVMs. Zero sensitive corporate data touches an external API.
 * **Hardware & Cost Efficiency:** Optimized to run inference locally on standard unified-memory architecture before scaling out to sovereign data centers.
 * **A European Digital Public Good:** Governed strictly under the Apache 2.0 license.
@@ -19,10 +19,10 @@ EuroClaw wasn't built just to be another AI wrapper; it was engineered from the 
 ---
 
 ## ⚖️ Enterprise Governance & Safety
-* **Federated Identity & SSO (OIDC/OAuth2):** Full support for modern Enterprise Single Sign-On via OpenID Connect and OAuth2. 
+* **Federated Identity & SSO (OIDC/OAuth2):** Full support for modern Enterprise Single Sign-On via OpenID Connect and OAuth2.
 * **Legacy Directory Bridging (LDAPS/AD):** Through Identity Brokers (like Keycloak), EuroClaw maps users from legacy on-premise AD and Secure LDAP (LDAPS) servers into modern execution roles.
 * **Human-in-the-Loop (HITL) Checkpoints:** High-Risk tools pause execution and route an approval request to an administrator, maintaining state until authorization is granted.
-* **Role-Based Tool Access (RBAC):** Strict capability bounding mapped directly to enterprise SSO groups. 
+* **Role-Based Tool Access (RBAC):** Strict capability bounding mapped directly to enterprise SSO groups.
 * **Hardware-Level Sandboxing:** Utilizes **Firecracker MicroVMs** (KVM) to boot disposable, hardware-isolated Linux kernels for tool execution.
 
 ---
@@ -94,7 +94,7 @@ Install Ollama:
    brew install ollama
    ollama serve &
    ```
-   
+
 Install your model of choice:
    ```Bash
    ollama run mistral  # Or x/z-image-turbo, phi4, qwen3.5:9b etc.
@@ -117,7 +117,7 @@ Update your .env:
    ```
    LLM_PROVIDER="ollama"
    # If Ollama is running natively on Windows, WSL2 accesses it via the host IP
-   LLM_ENDPOINT="[http://host.docker.internal:11434](http://host.docker.internal:11434)" 
+   LLM_ENDPOINT="[http://host.docker.internal:11434](http://host.docker.internal:11434)"
    DEFAULT_MODEL="mistral"
    ```
 ## 🏗️ Building Apps: Your Workspace Structure
@@ -143,7 +143,7 @@ Create a .env inside your my_instagram_agent folder:
    LLM_PROVIDER="ollama"
    LLM_ENDPOINT="http://localhost:11434"
    DEFAULT_MODEL="mistral"
-   
+
    # Webhooks for your custom tools
    TELEGRAM_WEBHOOK_URL="[https://api.telegram.org/bot](https://api.telegram.org/bot)<YOUR_TOKEN>/sendMessage"
    INSTAGRAM_API_URL="[https://graph.facebook.com/v18.0/me/media](https://graph.facebook.com/v18.0/me/media)"
@@ -163,7 +163,7 @@ Create your agent profiles in agents.yaml:
          endpoint_env_var: "LLM_ENDPOINT"
       allowed_tools:
          - "generate_image"
-         - "request_telegram_approval" 
+         - "request_telegram_approval"
          - "post_to_instagram"
       cron_schedule:
          - "06:00"
@@ -197,7 +197,7 @@ Create instagram_bot.py:
    def run_campaign():
       print(f"\n🚀 Starting Social Media Campaign...")
       prompt = "Create an image concept for Open Source Security and request Telegram approval."
-      
+
       result = orchestrator.handle_request(prompt)
       print("\n--- CAMPAIGN RESULT ---")
       print(result)
