@@ -76,7 +76,7 @@ jobs:
         if [[ -n "$(git status --porcelain docs/euroclaw_architecture.png)" ]]; then
           git add docs/euroclaw_architecture.png
           git commit -m "docs: Auto-update architecture diagram [skip ci]"
-          git push
+          git push origin HEAD:${{ github.ref_name }}
         else
           echo "Architecture diagram has not changed. Skipping commit."
         fi
