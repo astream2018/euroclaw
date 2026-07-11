@@ -1,0 +1,26 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/your-org/euroclaw
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+env:
+  EXECUTION_MODE: local
+  API_VERSION: v1
+  RATE_LIMIT_REQUESTS: "60"
+  RATE_LIMIT_WINDOW_SECONDS: "60"
+
+secrets:
+  existingSecret: euroclaw-secrets
+
+resources: {}
+
+probes:
+  readinessPath: /healthz/readiness
+  livenessPath: /healthz/liveness

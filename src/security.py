@@ -49,6 +49,6 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
             raise credentials_exception
 
         return {"user_id": user_id, "roles": roles, "email": payload.get("email", "")}
-    except JWTError as e:
+    except (JWTError, Exception) as e:
         logger.warning(f"Invalid token detected: {e}")
         raise credentials_exception

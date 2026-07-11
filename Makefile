@@ -1,4 +1,4 @@
-.PHONY: install-dev test lint format up-test
+.PHONY: install-dev test lint format up-test deploy-compose deploy-helm
 
 install-dev:
 	pip install -r requirements.txt -r requirements-dev.txt
@@ -25,3 +25,9 @@ run-orchestrator:
 
 run-worker:
 	celery -A src.worker celery_app worker --loglevel=info --concurrency=4
+
+deploy-compose:
+	docker compose -f deploy/docker-compose.yml up -d --build
+
+deploy-helm:
+	helm upgrade --install euroclaw helm/euroclaw -f helm/euroclaw/values-production.yaml

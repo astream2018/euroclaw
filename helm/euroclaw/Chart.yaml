@@ -1,0 +1,6 @@
+apiVersion: v2
+name: euroclaw
+description: Helm chart for deploying EuroClaw API
+version: 0.1.0
+appVersion: "1.0.0"
+type: application
