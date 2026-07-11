@@ -11,6 +11,17 @@ Designed to adhere strictly to European compliance and privacy boundaries, EuroC
 ## 🛡️ Why EuroClaw? (The Mission)
 EuroClaw wasn't built just to be another AI wrapper; it was engineered from the ground up to solve the critical adoption blockers faced by European enterprises, governments, and healthcare providers.
 
+## 🚦 Production Readiness Improvements
+Recent work has focused on making the framework more suitable for enterprise deployment:
+- Added health endpoints for liveness and readiness at /healthz/liveness and /healthz/readiness.
+- Introduced configuration validation helpers for Redis, OTEL, execution mode, and workspace settings.
+- Hardened OpenTelemetry initialization so missing collectors do not block startup or tests.
+- Added request correlation headers and structured logging for operational traceability.
+- Added support for multi-agent conversation flows with roleplay personas and participant-aware transcripts.
+- Added regression tests for health, configuration, request correlation, and multi-agent orchestration behavior.
+
+Further guidance is available in [docs/PRODUCTION_READINESS_AUDIT.md](docs/PRODUCTION_READINESS_AUDIT.md) and [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md).
+
 * **EU AI Act Compliance Built-In:** OpenTelemetry (OTel) logs every single LLM reasoning cycle and sandbox execution as an immutable trace.
 * **True Air-Gapped Sovereignty:** Routes reasoning exclusively through local models and executes tools in zero-trust microVMs. Zero sensitive corporate data touches an external API.
 * **Hardware & Cost Efficiency:** Optimized to run inference locally on standard unified-memory architecture before scaling out to sovereign data centers.
@@ -82,6 +93,27 @@ Clone the repository and configure your environment variables for core infrastru
    pip install -r requirements.txt
    pip install -e .
    ```
+## 🤖 Multi-Agent Conversations & Roleplay
+EuroClaw now supports role-aware multi-agent request handling through the orchestration API. You can send a persona plus a list of participants, and the backend will generate a concise transcript-style response for the conversation.
+
+Example request payload:
+
+```json
+{
+  "user_id": "user_123",
+  "text": "Draft a launch plan for the new feature",
+  "roleplay": { "persona": "executive sponsor" },
+  "conversation": {
+    "participants": [
+      { "name": "analyst", "role": "product strategist" },
+      { "name": "reviewer", "role": "risk reviewer" }
+    ]
+  }
+}
+```
+
+This backend is intentionally API-first. A dedicated web or desktop UI can be built in a separate repository and connected to the EuroClaw API for chat, workflow visualization, and roleplay management.
+
 🚀 Developer Quick Start: Local LLM Inference
 EuroClaw is optimized to run fully offline using local LLMs. For local development, we recommend using Ollama as your sovereign model provider.
 
