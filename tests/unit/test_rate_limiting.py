@@ -1,13 +1,11 @@
 import os
 import importlib
-
+import src.app as app_module
 from fastapi.testclient import TestClient
 
 
 os.environ.setdefault("RATE_LIMIT_REQUESTS", "2")
 os.environ.setdefault("RATE_LIMIT_WINDOW_SECONDS", "60")
-
-import src.app as app_module
 
 
 def test_rate_limit_enforces_threshold():

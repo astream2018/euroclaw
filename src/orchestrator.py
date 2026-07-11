@@ -25,9 +25,12 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
 def configure_tracing() -> None:
     if os.getenv("OTEL_SDK_DISABLED", "").lower() in {"1", "true", "yes"}:
-        logger.info("OpenTelemetry SDK disabled via environment; skipping exporter setup")
+        logger.info(
+            "OpenTelemetry SDK disabled via environment; skipping exporter setup"
+        )
         return
 
     provider = trace.get_tracer_provider()
@@ -68,7 +71,9 @@ except ValueError as exc:
 if settings is not None:
     r = redis.Redis(host=settings.redis_host, port=6379, decode_responses=True)
 else:
-    r = redis.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=6379, decode_responses=True)
+    r = redis.Redis(
+        host=os.getenv("REDIS_HOST", "localhost"), port=6379, decode_responses=True
+    )
 gateway = SovereignLLMGateway()
 
 # --- DISTRIBUTED WORKER CONFIGURATION ---
@@ -277,7 +282,9 @@ def process_inbound_message(message_payload: dict) -> str:
             pass
 
         with tracer.start_as_current_span("llm_inference"):
-            persona = roleplay_config.get("persona", "secure EuroClaw Linux automation agent")
+            persona = roleplay_config.get(
+                "persona", "secure EuroClaw Linux automation agent"
+            )
             participants = conversation_config.get("participants", [])
             participant_descriptions = []
 
@@ -307,9 +314,7 @@ def process_inbound_message(message_payload: dict) -> str:
             responses = []
 
             for index, _ in enumerate(participants or [None], start=1):
-                prompt = (
-                    f"Agent {index} response for the conversation: {messages[-1]}"
-                )
+                prompt = f"Agent {index} response for the conversation: {messages[-1]}"
                 response = gateway.query_model(
                     prompt=prompt,
                     system_instruction=system_prompt,

@@ -24,7 +24,9 @@ def validate_settings() -> Settings:
         raise ValueError("EXECUTION_MODE must be 'local' or 'distributed'")
 
     allowed_workspaces = tuple(
-        workspace.strip() for workspace in allowed_workspaces_raw.split(",") if workspace.strip()
+        workspace.strip()
+        for workspace in allowed_workspaces_raw.split(",")
+        if workspace.strip()
     )
 
     return Settings(

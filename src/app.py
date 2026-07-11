@@ -174,7 +174,9 @@ def _get_hitl_payload(task_id: str) -> dict | None:
     try:
         raw_data = r.get(redis_key)
     except Exception as exc:
-        logger.warning("Redis unavailable for HITL state; using in-memory fallback: %s", exc)
+        logger.warning(
+            "Redis unavailable for HITL state; using in-memory fallback: %s", exc
+        )
         return hitl_store.get(redis_key)
 
     if not raw_data:
@@ -190,7 +192,9 @@ def _set_hitl_payload(task_id: str, payload: dict, ttl_seconds: int = 300) -> No
     try:
         r.set(redis_key, json.dumps(payload), ex=ttl_seconds)
     except Exception as exc:
-        logger.warning("Redis unavailable for HITL persistence; using in-memory fallback: %s", exc)
+        logger.warning(
+            "Redis unavailable for HITL persistence; using in-memory fallback: %s", exc
+        )
         hitl_store[redis_key] = payload
 
 

@@ -16,7 +16,9 @@ logger = logging.getLogger("euroclaw.sandbox.firecracker")
 def configure_telemetry():
     """Configures OpenTelemetry to send traces to the local Jaeger instance when available."""
     if os.getenv("OTEL_SDK_DISABLED", "").lower() in {"1", "true", "yes"}:
-        logger.info("OpenTelemetry SDK disabled via environment; skipping sandbox exporter setup")
+        logger.info(
+            "OpenTelemetry SDK disabled via environment; skipping sandbox exporter setup"
+        )
         return
 
     provider = trace.get_tracer_provider()
