@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "euroclaw.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "euroclaw.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "euroclaw.name" . }}
+    spec:
+      containers:
+        - name: euroclaw
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.existingSecret }}
+          env:
+            - name: EXECUTION_MODE
+              value: {{ .Values.env.EXECUTION_MODE | quote }}
+            - name: API_VERSION
+              value: {{ .Values.env.API_VERSION | quote }}
+            - name: RATE_LIMIT_REQUESTS
+              value: {{ .Values.env.RATE_LIMIT_REQUESTS | quote }}
+            - name: RATE_LIMIT_WINDOW_SECONDS
+              value: {{ .Values.env.RATE_LIMIT_WINDOW_SECONDS | quote }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readinessPath }}
+              port: 8000
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.livenessPath }}
+              port: 8000

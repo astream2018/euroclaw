@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: euroclaw-secrets
+type: Opaque
+stringData:
+  REDIS_HOST: redis
+  OIDC_ISSUER_URL: http://keycloak:8080/realms/euroclaw
+  OIDC_AUDIENCE: euroclaw-api
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: euroclaw-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: euroclaw-api
+  template:
+    metadata:
+      labels:
+        app: euroclaw-api
+    spec:
+      containers:
+        - name: euroclaw-api
+          image: euroclaw:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: euroclaw-secrets
+          env:
+            - name: EXECUTION_MODE
+              value: local
+            - name: API_VERSION
+              value: v1
+            - name: RATE_LIMIT_REQUESTS
+              value: "60"
+            - name: RATE_LIMIT_WINDOW_SECONDS
+              value: "60"
+          readinessProbe:
+            httpGet:
+              path: /healthz/readiness
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz/liveness
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: euroclaw-api
+spec:
+  selector:
+    app: euroclaw-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000

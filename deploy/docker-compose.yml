@@ -1,0 +1,22 @@
+version: "3.9"
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  euroclaw-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      REDIS_HOST: redis
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      EXECUTION_MODE: local
+      API_VERSION: v1
+      RATE_LIMIT_REQUESTS: 60
+      RATE_LIMIT_WINDOW_SECONDS: 60
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis

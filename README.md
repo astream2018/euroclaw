@@ -11,6 +11,9 @@ Designed to adhere strictly to European compliance and privacy boundaries, EuroC
 ## 🛡️ Why EuroClaw? (The Mission)
 EuroClaw wasn't built just to be another AI wrapper; it was engineered from the ground up to solve the critical adoption blockers faced by European enterprises, governments, and healthcare providers.
 
+## 🧭 API Versioning & Security
+The service exposes versioned endpoints under /api/v1 and publishes an OpenAPI schema with a BearerAuth security scheme for enterprise integrations. The API is intentionally designed to be consumed by a separate UI repository or automation layer while keeping the backend contract explicit and versioned.
+
 ## 🚦 Production Readiness Improvements
 Recent work has focused on making the framework more suitable for enterprise deployment:
 - Added health endpoints for liveness and readiness at /healthz/liveness and /healthz/readiness.
@@ -79,6 +82,13 @@ Immutable Audit: Every single step—from the LLM reasoning to the hardware exec
 ### 🛠️ Quick Start & Environment Configuration
 Clone the repository and configure your environment variables for core infrastructure, OIDC security, and enterprise messaging plugins.
 
+Key environment settings include:
+- REDIS_HOST for Redis-backed state and task execution
+- OTEL_EXPORTER_OTLP_ENDPOINT for optional telemetry export
+- EXECUTION_MODE for local or distributed execution
+- RATE_LIMIT_REQUESTS and RATE_LIMIT_WINDOW_SECONDS for API throttling
+- OIDC_ISSUER_URL and OIDC_AUDIENCE for enterprise authentication
+
    ``` Bash
    # Clone the repository
    git clone [https://github.com/astream2018/euroclaw.git](https://github.com/astream2018/euroclaw.git)
@@ -113,6 +123,21 @@ Example request payload:
 ```
 
 This backend is intentionally API-first. A dedicated web or desktop UI can be built in a separate repository and connected to the EuroClaw API for chat, workflow visualization, and roleplay management.
+
+## 🚀 Deployment Examples
+Two production-friendly deployment entrypoints are included:
+- [deploy/docker-compose.yml](deploy/docker-compose.yml) for a simple local or staging stack with Redis and the API service
+- [deploy/kubernetes.yaml](deploy/kubernetes.yaml) for a Kubernetes deployment with secrets, probes, and a service exposure
+- [helm/euroclaw](helm/euroclaw) for a lightweight Helm chart that packages the deployment for Kubernetes
+- [helm/euroclaw/values-production.yaml](helm/euroclaw/values-production.yaml) for a production-oriented Helm override
+- [.github/ISSUE_TEMPLATE/release-notes.md](.github/ISSUE_TEMPLATE/release-notes.md) as a release-notes template for deployment and rollout communication
+
+Useful shortcuts:
+- `make deploy-compose` to launch the compose-based deployment stack
+- `make deploy-helm` to install or upgrade the Helm release
+- `bash scripts/smoke-test.sh` to run the core regression suite used for deployment smoke validation
+
+Use the example environment file [.env_example](.env_example) as the baseline for secrets and runtime settings.
 
 🚀 Developer Quick Start: Local LLM Inference
 EuroClaw is optimized to run fully offline using local LLMs. For local development, we recommend using Ollama as your sovereign model provider.

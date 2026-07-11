@@ -1,4 +1,3 @@
-import os
 import logging
 import json
 import time
@@ -9,7 +8,7 @@ from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
 
-from src.config import validate_settings
+from src.config import validate_settings, get_settings
 from src.orchestrator import process_inbound_message, r
 from src.security import get_current_user
 from plugins.whatsapp import WhatsAppPlugin
@@ -22,6 +21,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s request_id=%(request_id)s %(message)s",
 )
+settings = get_settings()
 rate_limit_store: dict[str, tuple[int, float]] = {}
 hitl_store: dict[str, dict] = {}
 
@@ -67,7 +67,7 @@ async def lifespan(fastapi_app: FastAPI):
 # Initialiseer FastAPI met de lifespan manager
 app = FastAPI(
     title="EuroClaw Sovereign Orchestration Engine API",
-    version="v1",
+    version=settings.api_version,
     lifespan=lifespan,
 )
 
@@ -125,8 +125,8 @@ async def enforce_rate_limit(request: Request, call_next):
     }:
         return await call_next(request)
 
-    limit = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
-    window_seconds = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+    limit = settings.rate_limit_requests
+    window_seconds = settings.rate_limit_window_seconds
     client_ip = request.client.host if request.client else "unknown"
     key = f"rate-limit:{client_ip}"
     now = time.time()

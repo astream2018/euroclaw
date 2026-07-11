@@ -23,3 +23,12 @@ def test_config_validation_rejects_blank_required_values(monkeypatch):
 
     with pytest.raises(ValueError, match="REDIS_HOST"):
         validate_settings()
+
+
+def test_settings_defaults_to_safe_values(monkeypatch):
+    monkeypatch.delenv("REDIS_HOST", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.delenv("EXECUTION_MODE", raising=False)
+
+    with pytest.raises(ValueError, match="REDIS_HOST"):
+        validate_settings()
