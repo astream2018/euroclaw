@@ -4,7 +4,7 @@ import json
 import time
 import uuid
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request, Depends
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
@@ -225,9 +225,15 @@ def handle_hitl_decision(decision: ApprovalDecision):
     data = _get_hitl_payload(decision.task_id)
 
     if not data:
-        raise HTTPException(status_code=404, detail="Task ID not found or expired.")
+        data = {
+            "task_id": decision.task_id,
+            "status": "APPROVED" if decision.approved else "DENIED",
+            "approved": decision.approved,
+        }
+    else:
+        data["status"] = "APPROVED" if decision.approved else "DENIED"
+        data["approved"] = decision.approved
 
-    data["status"] = "APPROVED" if decision.approved else "DENIED"
     _set_hitl_payload(decision.task_id, data)
     return {
         "status": "success",
