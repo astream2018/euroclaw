@@ -264,19 +264,77 @@ def dispatch_agent_tool(user_id: str, tool_name: str, arguments: str) -> str:
 
 def process_inbound_message(message_payload: dict) -> str:
     user_id = message_payload.get("user_id", "unknown")
+    roleplay_config = message_payload.get("roleplay") or {}
+    conversation_config = message_payload.get("conversation") or {}
 
     with tracer.start_as_current_span("agent_reasoning_loop") as parent_span:
         parent_span.set_attribute("euroclaw.user_id", user_id)
-        parent_span.set_attribute("euroclaw.source", message_payload.get("source"))
+        parent_span.set_attribute(
+            "euroclaw.source", str(message_payload.get("source") or "unknown")
+        )
 
         with tracer.start_as_current_span("context_retrieval"):
             pass
 
         with tracer.start_as_current_span("llm_inference"):
-            system_prompt = "You are a secure EuroClaw Linux Automation Agent. Return standard tool calling blocks for required changes."
-            response = gateway.query_model(
-                prompt=message_payload["text"], system_instruction=system_prompt
-            )
+            persona = roleplay_config.get("persona", "secure EuroClaw Linux automation agent")
+            participants = conversation_config.get("participants", [])
+            participant_descriptions = []
+
+            if participants:
+                for participant in participants:
+                    name = participant.get("name", "agent")
+                    role = participant.get("role", "assistant")
+                    participant_descriptions.append(f"{name} ({role})")
+
+            if participant_descriptions:
+                participant_context = "\n".join(
+                    [f"- {entry}" for entry in participant_descriptions]
+                )
+                system_prompt = (
+                    f"You are a {persona}. "
+                    f"Facilitate a multi-agent conversation with the following participants:\n"
+                    f"{participant_context}\n"
+                    "Present the discussion as a concise role-aware transcript."
+                )
+            else:
+                system_prompt = (
+                    f"You are a {persona}. "
+                    "Return standard tool calling blocks for required changes when appropriate."
+                )
+
+            messages = [message_payload["text"]]
+            responses = []
+
+            for index, _ in enumerate(participants or [None], start=1):
+                prompt = (
+                    f"Agent {index} response for the conversation: {messages[-1]}"
+                )
+                response = gateway.query_model(
+                    prompt=prompt,
+                    system_instruction=system_prompt,
+                )
+                responses.append(response)
+
+                if index < len(participants or [None]):
+                    messages.append(response)
+
+            if responses:
+                if participant_descriptions:
+                    transcript_lines = [f"Roleplay persona: {persona}"]
+                    transcript_lines.append("Conversation transcript:")
+                    for participant, reply in zip(participants, responses):
+                        name = participant.get("name", "agent")
+                        role = participant.get("role", "assistant")
+                        transcript_lines.append(f"{name} ({role}): {reply}")
+                    response = "\n\n".join(transcript_lines)
+                else:
+                    response = "\n\n".join(responses)
+            else:
+                response = gateway.query_model(
+                    prompt=message_payload["text"],
+                    system_instruction=system_prompt,
+                )
 
         # In a fully connected flow, you parse 'response' here to find the tool_name and arguments
         # and then call: dispatch_agent_tool(user_id, tool_name, arguments)

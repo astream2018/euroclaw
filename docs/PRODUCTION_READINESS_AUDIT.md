@@ -22,6 +22,7 @@ EuroClaw already has a strong conceptual architecture for sovereign, zero-trust 
 3. Made telemetry initialization resilient to missing collectors and disabled environments.
 4. Added regression tests for configuration and health behavior.
 5. Made integration tests skip gracefully when Redis is unavailable.
+6. Added support for roleplay-aware multi-agent conversation handling in the orchestration layer.
 
 ## Recommended Next Steps
 - Add a dedicated settings module backed by environment-driven validation.
@@ -29,3 +30,4 @@ EuroClaw already has a strong conceptual architecture for sovereign, zero-trust 
 - Add API versioning and OpenAPI security documentation.
 - Add a deployment guide for Docker/Kubernetes and secrets management.
 - Extend tests with authentication and plugin contract coverage.
+- Provide a separate UI repository for chat, workflow visualization, and roleplay management on top of the API.

@@ -3,6 +3,8 @@
 ## Overview
 EuroClaw is designed to run as a sovereign orchestration service with optional Redis-backed worker execution and optional OpenTelemetry exporters. For production deployments, use a container orchestrator such as Docker Compose or Kubernetes.
 
+The backend is API-first and can be consumed by a separate UI repository for chat, workflow control, and multi-agent roleplay experiences.
+
 ## Recommended deployment shape
 - Run the API service behind a reverse proxy with TLS termination.
 - Use Redis for distributed task execution when EXECUTION_MODE=distributed.
@@ -17,6 +19,21 @@ docker run --rm -p 8000:8000 \
   -e OTEL_SDK_DISABLED=true \
   -e EXECUTION_MODE=local \
   euroclaw:latest
+```
+
+## Example multi-agent request
+```json
+{
+  "user_id": "user_123",
+  "text": "Summarize the launch risks",
+  "roleplay": { "persona": "operations lead" },
+  "conversation": {
+    "participants": [
+      { "name": "analyst", "role": "risk analyst" },
+      { "name": "reviewer", "role": "compliance reviewer" }
+    ]
+  }
+}
 ```
 
 ## Kubernetes notes

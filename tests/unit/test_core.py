@@ -4,7 +4,7 @@ import subprocess
 from unittest.mock import patch, MagicMock
 from src.sandbox_firecracker import FirecrackerMicroVM
 import requests.exceptions
-from src.orchestrator import execute_agent_tool
+from src.orchestrator import execute_agent_tool, process_inbound_message
 
 # ==========================================
 # TEST CASES FOR FIRECRACKER MICROVM ERROR FLOW
@@ -133,3 +133,28 @@ def test_orchestrator_routes_unknown_tool_to_sandbox(MockVM):
     )
     mock_vm_instance.teardown.assert_called_once()
     assert result == "Code Executed in VM"
+
+
+@patch("src.orchestrator.gateway.query_model")
+def test_process_inbound_message_supports_multi_agent_roleplay(mock_query_model):
+    """Multi-agent requests should be turned into a role-aware conversation transcript."""
+    mock_query_model.side_effect = ["Analyst summary", "Reviewer critique"]
+
+    payload = {
+        "user_id": "user_123",
+        "text": "Draft a launch plan for the new feature",
+        "roleplay": {"persona": "executive sponsor"},
+        "conversation": {
+            "participants": [
+                {"name": "analyst", "role": "product strategist"},
+                {"name": "reviewer", "role": "risk reviewer"},
+            ]
+        },
+    }
+
+    result = process_inbound_message(payload)
+
+    assert mock_query_model.call_count == 2
+    assert "analyst" in result.lower()
+    assert "reviewer" in result.lower()
+    assert "executive sponsor" in result.lower()
