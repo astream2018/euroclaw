@@ -1,9 +1,15 @@
+import os
 import logging
 import json
+import time
+import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel
+from starlette.responses import JSONResponse
 
+from src.config import validate_settings
 from src.orchestrator import process_inbound_message, r
 from src.security import get_current_user
 from plugins.whatsapp import WhatsAppPlugin
@@ -12,6 +18,22 @@ from plugins.slack import SlackPlugin
 from plugins.teams import TeamsPlugin
 
 logger = logging.getLogger("euroclaw.api")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s request_id=%(request_id)s %(message)s",
+)
+rate_limit_store: dict[str, tuple[int, float]] = {}
+hitl_store: dict[str, dict] = {}
+
+
+class ContextFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        request_id = getattr(record, "request_id", "") or "-"
+        record.request_id = request_id
+        return True
+
+
+logging.getLogger().addFilter(ContextFilter())
 
 # =====================================================================
 # CRUCIAAL: Initialiseer de plugins in de globale scope (Boven de functies)
@@ -43,12 +65,133 @@ async def lifespan(fastapi_app: FastAPI):
 
 
 # Initialiseer FastAPI met de lifespan manager
-app = FastAPI(title="EuroClaw Sovereign Orchestration Engine API", lifespan=lifespan)
+app = FastAPI(
+    title="EuroClaw Sovereign Orchestration Engine API",
+    version="v1",
+    lifespan=lifespan,
+)
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description="Sovereign orchestration API with enterprise authentication and auditability.",
+        routes=app.routes,
+    )
+    openapi_schema.setdefault("components", {}).setdefault("securitySchemes", {})[
+        "BearerAuth"
+    ] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+    }
+    openapi_schema["security"] = [{"BearerAuth": []}]
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
+
+
+@app.middleware("http")
+async def add_request_context(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.state.request_id = request_id
+    response = None
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "same-origin"
+        return response
+    finally:
+        logger.info(
+            "request completed",
+            extra={"request_id": request_id},
+        )
+
+
+@app.middleware("http")
+async def enforce_rate_limit(request: Request, call_next):
+    if request.url.path.startswith("/healthz") or request.url.path in {
+        "/openapi.json",
+        "/docs",
+        "/docs/oauth2-redirect",
+    }:
+        return await call_next(request)
+
+    limit = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
+    window_seconds = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+    client_ip = request.client.host if request.client else "unknown"
+    key = f"rate-limit:{client_ip}"
+    now = time.time()
+    current = rate_limit_store.get(key)
+
+    if current is not None and current[1] <= now:
+        rate_limit_store.pop(key, None)
+        current = None
+
+    if current is None:
+        rate_limit_store[key] = (1, now + window_seconds)
+    else:
+        current_count = current[0]
+        if current_count >= limit:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded"},
+            )
+        rate_limit_store[key] = (current_count + 1, current[1])
+
+    return await call_next(request)
+
+
+@app.get("/healthz/liveness")
+def liveness() -> dict:
+    return {"status": "ok"}
+
+
+@app.get("/healthz/readiness")
+def readiness() -> dict:
+    try:
+        validate_settings()
+        return {"status": "ok"}
+    except ValueError:
+        return {"status": "ok", "detail": "Configuration defaults are active"}
 
 
 class ApprovalDecision(BaseModel):
     task_id: str
     approved: bool
+
+
+def _get_hitl_payload(task_id: str) -> dict | None:
+    redis_key = f"hitl:{task_id}"
+    try:
+        raw_data = r.get(redis_key)
+    except Exception as exc:
+        logger.warning("Redis unavailable for HITL state; using in-memory fallback: %s", exc)
+        return hitl_store.get(redis_key)
+
+    if not raw_data:
+        return None
+
+    if isinstance(raw_data, str):
+        return json.loads(raw_data)
+    return raw_data
+
+
+def _set_hitl_payload(task_id: str, payload: dict, ttl_seconds: int = 300) -> None:
+    redis_key = f"hitl:{task_id}"
+    try:
+        r.set(redis_key, json.dumps(payload), ex=ttl_seconds)
+    except Exception as exc:
+        logger.warning("Redis unavailable for HITL persistence; using in-memory fallback: %s", exc)
+        hitl_store[redis_key] = payload
 
 
 # =====================================================================
@@ -62,6 +205,10 @@ async def secure_orchestration_endpoint(
 ):
     """Secure OIDC endpoint for API-driven enterprise workflows."""
     payload = await request.json()
+    logger.info(
+        "orchestration request received",
+        extra={"request_id": getattr(request.state, "request_id", "-")},
+    )
     payload["user_id"] = current_user["user_id"]
     payload["roles"] = current_user["roles"]
 
@@ -71,15 +218,13 @@ async def secure_orchestration_endpoint(
 
 @app.post("/api/v1/hitl/callback")
 def handle_hitl_decision(decision: ApprovalDecision):
-    redis_key = f"hitl:{decision.task_id}"
-    raw_data = r.get(redis_key)
+    data = _get_hitl_payload(decision.task_id)
 
-    if not raw_data:
+    if not data:
         raise HTTPException(status_code=404, detail="Task ID not found or expired.")
 
-    data = json.loads(raw_data)
     data["status"] = "APPROVED" if decision.approved else "DENIED"
-    r.set(redis_key, json.dumps(data), ex=300)
+    _set_hitl_payload(decision.task_id, data)
     return {
         "status": "success",
         "message": f"Task {decision.task_id} updated to {data['status']}",

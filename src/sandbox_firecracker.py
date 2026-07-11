@@ -10,23 +10,37 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 
+logger = logging.getLogger("euroclaw.sandbox.firecracker")
+
 
 def configure_telemetry():
-    """Configures OpenTelemetry to send traces to the local Jaeger instance."""
-    # UI
-    resource = Resource.create({"service.name": "euroclaw-firecracker-sandbox"})
-    provider = TracerProvider(resource=resource)
+    """Configures OpenTelemetry to send traces to the local Jaeger instance when available."""
+    if os.getenv("OTEL_SDK_DISABLED", "").lower() in {"1", "true", "yes"}:
+        logger.info("OpenTelemetry SDK disabled via environment; skipping sandbox exporter setup")
+        return
 
-    # Configure the exporter to send data to the Docker container on port 4318
-    otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces")
-    provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+    provider = trace.get_tracer_provider()
+    if not isinstance(provider, TracerProvider):
+        provider = TracerProvider(
+            resource=Resource.create({"service.name": "euroclaw-firecracker-sandbox"})
+        )
+        try:
+            trace.set_tracer_provider(provider)
+        except Exception:
+            provider = trace.get_tracer_provider()
 
-    trace.set_tracer_provider(provider)
+    try:
+        otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces")
+        provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+    except Exception as exc:
+        logger.warning(
+            "Sandbox telemetry exporter unavailable; continuing without remote traces: %s",
+            exc,
+        )
 
 
 configure_telemetry()
 
-logger = logging.getLogger("euroclaw.sandbox.firecracker")
 tracer = trace.get_tracer(__name__)
 
 

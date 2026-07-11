@@ -6,10 +6,12 @@ import logging
 import redis
 from celery import Celery
 from opentelemetry import trace
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
+from src.config import validate_settings
 from src.dag_visualizer import AgentDAGTracer
 from src.llm_gateway import SovereignLLMGateway
 from src.sandbox_firecracker import FirecrackerMicroVM
@@ -23,16 +25,50 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-trace.set_tracer_provider(TracerProvider())
-tracer = trace.get_tracer(__name__)
-otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
-trace.get_tracer_provider().add_span_processor(
-    BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint))
-)
+def configure_tracing() -> None:
+    if os.getenv("OTEL_SDK_DISABLED", "").lower() in {"1", "true", "yes"}:
+        logger.info("OpenTelemetry SDK disabled via environment; skipping exporter setup")
+        return
 
-r = redis.Redis(
-    host=os.getenv("REDIS_HOST", "localhost"), port=6379, decode_responses=True
-)
+    provider = trace.get_tracer_provider()
+    if not isinstance(provider, TracerProvider):
+        provider = TracerProvider(
+            resource=Resource.create({"service.name": "euroclaw-orchestrator"})
+        )
+        try:
+            trace.set_tracer_provider(provider)
+        except Exception:
+            provider = trace.get_tracer_provider()
+
+    otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+    if not otlp_endpoint:
+        logger.info("No OTLP endpoint configured; continuing without remote traces")
+        return
+
+    try:
+        provider.add_span_processor(
+            BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint))
+        )
+    except Exception as exc:
+        logger.warning(
+            "Telemetry exporter unavailable; continuing without remote traces: %s",
+            exc,
+        )
+
+
+configure_tracing()
+tracer = trace.get_tracer(__name__)
+
+settings = None
+try:
+    settings = validate_settings()
+except ValueError as exc:
+    logger.warning("Configuration validation failed at import time: %s", exc)
+
+if settings is not None:
+    r = redis.Redis(host=settings.redis_host, port=6379, decode_responses=True)
+else:
+    r = redis.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=6379, decode_responses=True)
 gateway = SovereignLLMGateway()
 
 # --- DISTRIBUTED WORKER CONFIGURATION ---
