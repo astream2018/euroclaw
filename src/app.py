@@ -75,9 +75,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        os.getenv("LOCAL_UI_URL", "http://localhost:3000").strip()
-    ],
+    allow_origins=[os.getenv("LOCAL_UI_URL", "http://localhost:3000").strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
