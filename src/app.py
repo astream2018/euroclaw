@@ -1,9 +1,11 @@
+import os
 import logging
 import json
 import time
 import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
@@ -69,6 +71,14 @@ app = FastAPI(
     title="EuroClaw Sovereign Orchestration Engine API",
     version=settings.api_version,
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.getenv("LOCAL_UI_URL", "http://localhost:3000").strip()],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
