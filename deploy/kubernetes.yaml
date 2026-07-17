@@ -33,8 +33,11 @@ spec:
             - secretRef:
                 name: euroclaw-secrets
           env:
+            # State (rate-limit/HITL/runs) is Redis-backed, so replicas > 1 is safe.
             - name: EXECUTION_MODE
               value: local
+            - name: SANDBOX_BACKEND
+              value: subprocess
             - name: API_VERSION
               value: v1
             - name: RATE_LIMIT_REQUESTS

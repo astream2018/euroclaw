@@ -1,24 +1,27 @@
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    OTEL_SDK_DISABLED=true
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install build dependencies required for compiling C extensions
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml README.md ./
+COPY euroclaw ./euroclaw
 
-COPY src ./src
-COPY plugins ./plugins
-COPY tests ./tests
+RUN pip install --no-cache-dir .
+
+# Run as a non-root user (defense in depth).
+RUN useradd --create-home --uid 10001 euroclaw
+USER euroclaw
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# OpenTelemetry is ON by default; it degrades gracefully without a collector.
+# The default sandbox backend is 'subprocess'. For hardware isolation, deploy on
+# a KVM-enabled host and set SANDBOX_BACKEND=firecracker.
+CMD ["python", "-m", "euroclaw"]

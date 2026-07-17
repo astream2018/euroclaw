@@ -1,4 +1,4 @@
-from plugins.base import MessagingPlugin
+from euroclaw.plugins.base import MessagingPlugin
 
 
 class DummyPlugin(MessagingPlugin):

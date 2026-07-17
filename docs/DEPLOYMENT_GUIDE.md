@@ -16,10 +16,15 @@ The backend is API-first and can be consumed by a separate UI repository for cha
 docker build -t euroclaw:latest .
 docker run --rm -p 8000:8000 \
   -e REDIS_HOST=redis \
-  -e OTEL_SDK_DISABLED=true \
   -e EXECUTION_MODE=local \
+  -e SANDBOX_BACKEND=subprocess \
   euroclaw:latest
 ```
+
+OpenTelemetry is enabled by default and degrades gracefully without a collector.
+Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export traces, or `OTEL_SDK_DISABLED=true`
+to turn tracing off entirely. For hardware-isolated execution, deploy on a
+KVM-enabled host and set `SANDBOX_BACKEND=firecracker`.
 
 ## Example multi-agent request
 ```json

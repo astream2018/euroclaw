@@ -1,0 +1,16 @@
+agents:
+  - name: "BrandStrategist"
+    role: "Open Source Marketing Director"
+    goal: "Generate high-converting image prompts and hashtags for daily posts."
+    backstory: >
+      You are an expert in developer relations and open-source branding.
+    llm_config:
+      provider: "ollama"
+      model: "mistral"
+      endpoint_env_var: "LOCAL_LLM_ENDPOINT"
+    allowed_tools:
+      - "search_internet"
+      - "request_telegram_approval"
+    cron_schedule:
+      - "06:00"
+      - "18:00"

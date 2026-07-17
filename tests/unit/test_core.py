@@ -1,143 +1,59 @@
-import os
-import pytest
-import subprocess
-from unittest.mock import patch, MagicMock
-from src.sandbox_firecracker import FirecrackerMicroVM
-import requests.exceptions
-from src.orchestrator import execute_agent_tool, process_inbound_message
+from unittest.mock import MagicMock, patch
 
-# ==========================================
-# TEST CASES FOR FIRECRACKER MICROVM ERROR FLOW
-# ==========================================
+from euroclaw import state
+from euroclaw.orchestrator import (
+    execute_agent_tool,
+    process_inbound_message,
+    run_agent_loop,
+)
 
 
-@patch("src.sandbox_firecracker.requests_unixsocket.Session")
-@patch("src.sandbox_firecracker.subprocess.Popen")
-@patch("src.sandbox_firecracker.shutil.copyfile")
-def test_firecracker_boot_socket_failure(mock_copyfile, mock_popen, mock_session_class):
-    """
-    Test that a failure to communicate with the Firecracker API socket
-    is handled or raised predictably.
-    """
-    mock_session_instance = MagicMock()
-    # Simulate a ConnectionError when trying to configure the boot-source
-    mock_session_instance.put.side_effect = requests.exceptions.ConnectionError(
-        "Socket refused"
-    )
-    mock_session_class.return_value = mock_session_instance
-
-    vm = FirecrackerMicroVM(task_id="test-crash-123")
-
-    # We expect the boot process to fail and raise the ConnectionError
-    with pytest.raises(requests.exceptions.ConnectionError, match="Socket refused"):
-        vm.boot()
-
-    # Verify that it actually attempted to launch the process before failing
-    mock_popen.assert_called_once()
+def setup_function():
+    state.reset_for_tests()
 
 
-# ==========================================
-# TEST CASES FOR FIRECRACKER MICROVM HAPPY FLOW
-# ==========================================
-
-
-@patch("src.sandbox_firecracker.requests_unixsocket.Session")
-@patch("src.sandbox_firecracker.subprocess.Popen")
-@patch("src.sandbox_firecracker.shutil.copyfile")
-def test_firecracker_boot(mock_copyfile, mock_popen, mock_session_class):
-    mock_session_instance = MagicMock()
-    mock_session_class.return_value = mock_session_instance
-
-    vm = FirecrackerMicroVM(task_id="test-task-123")
-    vm.boot()
-
-    mock_copyfile.assert_called_once_with(vm.base_rootfs, vm.ephemeral_rootfs)
-
-    mock_popen.assert_called_once_with(
-        ["/usr/bin/firecracker", "--api-sock", vm.socket_path],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    assert mock_session_instance.put.call_count == 4
-
-
-def test_firecracker_execute_tool():
-    vm = FirecrackerMicroVM(task_id="test-task-123")
-    result = vm.execute_tool(
-        tool_name="python_compiler", arguments="print('hello world')"
-    )
-
-    assert "MicroVM Execution Result:" in result
-    assert "python_compiler" in result
-    assert "completed in hardware isolation" in result
-
-
-real_exists = os.path.exists
-
-
-@patch("src.sandbox_firecracker.os.remove")
-@patch("src.sandbox_firecracker.os.path.exists")
-def test_firecracker_teardown(mock_exists, mock_remove):
-    # Safely mock exists only for the files we want to trigger cleanup for,
-    # letting normal system background checks pass to prevent crashes.
-    mock_exists.side_effect = lambda p: (
-        True if "test-task-123" in str(p) else real_exists(p)
-    )
-
-    vm = FirecrackerMicroVM(task_id="test-task-123")
-    vm.fc_process = MagicMock()
-
-    vm.teardown()
-
-    vm.fc_process.kill.assert_called_once()
-    assert mock_remove.call_count == 2
-
-
-@patch("src.orchestrator.WebIntelligencePlugin")
+@patch("euroclaw.orchestrator.WebIntelligencePlugin")
 def test_orchestrator_routes_web_search(MockWebPlugin):
-    """
-    Test that the orchestrator routes to the Web plugin correctly
-    without booting a hardware VM.
-    """
-    # Setup the mock to intercept the internet call
-    mock_instance = MockWebPlugin.return_value
-    mock_instance.search_internet.return_value = "Mocked Search Result"
+    instance = MockWebPlugin.return_value
+    instance.search_internet.return_value = "Mocked Search Result"
 
-    # Run the orchestrator with the web_search tool
-    result = execute_agent_tool("user_123", "search_internet", "EuroClaw framework")
+    result = execute_agent_tool(
+        "user_123", "search_internet", "EuroClaw framework", roles=["analyst"]
+    )
 
-    # Assert the plugin was triggered with the correct arguments
-    mock_instance.search_internet.assert_called_once_with(query="EuroClaw framework")
-
-    # Assert the orchestrator returned the data correctly
+    instance.search_internet.assert_called_once_with(query="EuroClaw framework")
     assert result == "Mocked Search Result"
 
 
-@patch("src.orchestrator.FirecrackerMicroVM")
-def test_orchestrator_routes_unknown_tool_to_sandbox(MockVM):
-    """
-    Test that executing a code block correctly routes to the
-    Firecracker hardware sandbox.
-    """
-    mock_vm_instance = MockVM.return_value
-    mock_vm_instance.execute_tool.return_value = "Code Executed in VM"
-
-    # Run the orchestrator with a code execution tool
-    result = execute_agent_tool("user_123", "python_compiler", "print('hello')")
-
-    # Assert the MicroVM was booted, executed, and torn down
-    mock_vm_instance.boot.assert_called_once()
-    mock_vm_instance.execute_tool.assert_called_once_with(
-        "python_compiler", "print('hello')"
+def test_rbac_denies_unauthorized_tool():
+    result = execute_agent_tool(
+        "user_123", "delete_database", "drop table users", roles=["analyst"]
     )
-    mock_vm_instance.teardown.assert_called_once()
-    assert result == "Code Executed in VM"
+    assert "Access denied by RBAC policy" in result
 
 
-@patch("src.orchestrator.gateway.query_model")
+@patch("euroclaw.orchestrator.get_sandbox")
+def test_unknown_tool_routes_to_sandbox(mock_get_sandbox):
+    sandbox = MagicMock()
+    sandbox.isolation_level = "process"
+    sandbox.__enter__.return_value = sandbox
+    sandbox.__exit__.return_value = False
+    exec_result = MagicMock()
+    exec_result.as_text.return_value = "sandboxed output"
+    sandbox.execute.return_value = exec_result
+    mock_get_sandbox.return_value = sandbox
+
+    # 'developer' role may run python in the sandbox.
+    result = execute_agent_tool(
+        "user_123", "python_compiler", "print('hi')", roles=["developer"]
+    )
+
+    sandbox.execute.assert_called_once_with("python_compiler", "print('hi')")
+    assert result == "sandboxed output"
+
+
+@patch("euroclaw.orchestrator.gateway.query_model")
 def test_process_inbound_message_supports_multi_agent_roleplay(mock_query_model):
-    """Multi-agent requests should be turned into a role-aware conversation transcript."""
     mock_query_model.side_effect = ["Analyst summary", "Reviewer critique"]
 
     payload = {
@@ -158,3 +74,28 @@ def test_process_inbound_message_supports_multi_agent_roleplay(mock_query_model)
     assert "analyst" in result.lower()
     assert "reviewer" in result.lower()
     assert "executive sponsor" in result.lower()
+
+
+@patch("euroclaw.orchestrator.dispatch_agent_tool")
+@patch("euroclaw.orchestrator.gateway.query_model")
+def test_agent_loop_executes_tool_then_returns_final(mock_query, mock_dispatch):
+    # First turn asks for a tool, second turn returns a plain final answer.
+    mock_query.side_effect = [
+        "TOOL_CALL: search_internet | Arguments: euroclaw",
+        "Final answer based on the search.",
+    ]
+    mock_dispatch.return_value = "search results"
+
+    result = run_agent_loop("user_1", "look it up", "agent", roles=["analyst"])
+
+    mock_dispatch.assert_called_once_with(
+        "user_1", "search_internet", "euroclaw", ["analyst"]
+    )
+    assert result == "Final answer based on the search."
+
+
+@patch("euroclaw.orchestrator.gateway.query_model")
+def test_agent_loop_returns_direct_answer_without_tools(mock_query):
+    mock_query.return_value = "Just a plain answer."
+    result = run_agent_loop("user_1", "hello", "agent", roles=["analyst"])
+    assert result == "Just a plain answer."

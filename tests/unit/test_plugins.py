@@ -1,4 +1,4 @@
-from plugins.local_files import LocalFileSystemPlugin
+from euroclaw.plugins.local_files import LocalFileSystemPlugin
 
 
 def test_local_file_plugin_blocks_path_traversal():

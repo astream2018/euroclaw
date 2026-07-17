@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from src.app import app
+from euroclaw.app import app
 
 
 def test_openapi_includes_security_scheme():
