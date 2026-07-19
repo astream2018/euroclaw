@@ -30,3 +30,7 @@ audit_logs/
 *.ext4
 vmlinux
 *.socket
+
+# Node / UI
+node_modules/
+ui/dist/

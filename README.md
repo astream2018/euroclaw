@@ -1,117 +1,159 @@
 # 🇪🇺 EuroClaw
 
-EuroClaw is an open-source, enterprise-grade agentic AI framework engineered for **absolute data sovereignty, zero-trust security, horizontal scalability, and operational flexibility**.
+EuroClaw is an open-source, enterprise-grade **agentic AI framework** engineered for
+**data sovereignty, zero-trust execution, RBAC governance, and horizontal scalability**.
 
-Designed to adhere strictly to European compliance and privacy boundaries, EuroClaw decouples your workflows from third-party US-hosted cloud dependencies.
+It routes reasoning through **local** LLMs, enforces **role-based** access on every
+tool call, gates high-risk actions behind **human approval**, executes untrusted code
+inside a **pluggable sandbox**, and writes a **tamper-evident audit trail** for every step.
 
-> 🚀 **Release Status:** Core architecture is locked. Full enterprise release and documentation go **Live in July 2026**.
-
----
-
-## 🛡️ Why EuroClaw? (The Mission)
-EuroClaw wasn't built just to be another AI wrapper; it was engineered from the ground up to solve the critical adoption blockers faced by European enterprises, governments, and healthcare providers.
-
-## 🧭 API Versioning & Security
-The service exposes versioned endpoints under /api/v1 and publishes an OpenAPI schema with a BearerAuth security scheme for enterprise integrations. The API is intentionally designed to be consumed by a separate UI repository or automation layer while keeping the backend contract explicit and versioned.
-
-## 🚦 Production Readiness Improvements
-Recent work has focused on making the framework more suitable for enterprise deployment:
-- Added health endpoints for liveness and readiness at /healthz/liveness and /healthz/readiness.
-- Introduced configuration validation helpers for Redis, OTEL, execution mode, and workspace settings.
-- Hardened OpenTelemetry initialization so missing collectors do not block startup or tests.
-- Added request correlation headers and structured logging for operational traceability.
-- Added support for multi-agent conversation flows with roleplay personas and participant-aware transcripts.
-- Added regression tests for health, configuration, request correlation, and multi-agent orchestration behavior.
-
-Further guidance is available in [docs/PRODUCTION_READINESS_AUDIT.md](docs/PRODUCTION_READINESS_AUDIT.md) and [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md).
-
-* **EU AI Act Compliance Built-In:** OpenTelemetry (OTel) logs every single LLM reasoning cycle and sandbox execution as an immutable trace.
-* **True Air-Gapped Sovereignty:** Routes reasoning exclusively through local models and executes tools in zero-trust microVMs. Zero sensitive corporate data touches an external API.
-* **Hardware & Cost Efficiency:** Optimized to run inference locally on standard unified-memory architecture before scaling out to sovereign data centers.
-* **A European Digital Public Good:** Governed strictly under the Apache 2.0 license.
+> **Status:** v0.2 — installable package, wired agent loop, enforced RBAC, async API.
+> The default sandbox provides real process-level isolation; hardware-level
+> (Firecracker microVM) isolation is a pluggable backend you enable on a KVM host
+> (see [Sandboxing](#-sandboxing-honest-isolation)).
 
 ---
 
-## ⚖️ Enterprise Governance & Safety
-* **Federated Identity & SSO (OIDC/OAuth2):** Full support for modern Enterprise Single Sign-On via OpenID Connect and OAuth2.
-* **Legacy Directory Bridging (LDAPS/AD):** Through Identity Brokers (like Keycloak), EuroClaw maps users from legacy on-premise AD and Secure LDAP (LDAPS) servers into modern execution roles.
-* **Human-in-the-Loop (HITL) Checkpoints:** High-Risk tools pause execution and route an approval request to an administrator, maintaining state until authorization is granted.
-* **Role-Based Tool Access (RBAC):** Strict capability bounding mapped directly to enterprise SSO groups.
-* **Hardware-Level Sandboxing:** Utilizes **Firecracker MicroVMs** (KVM) to boot disposable, hardware-isolated Linux kernels for tool execution.
+## ✨ What EuroClaw actually does (v0.2)
+
+| Capability | Status |
+|---|---|
+| Installable Python package (`pip install -e .`) | ✅ |
+| Wired reason → act → observe loop that **really executes tools** | ✅ |
+| RBAC enforced on every tool call (SSO-role → capability) | ✅ |
+| Human-in-the-Loop approval for high-risk tools | ✅ |
+| Pluggable sandbox — `subprocess` (default) or `firecracker` | ✅ / ⚙️ KVM |
+| Redis-backed rate limiting, HITL & async run state (multi-replica safe) | ✅ |
+| Non-blocking async run API + SSE streaming | ✅ |
+| OIDC/OAuth2 auth with cached JWKS | ✅ |
+| OpenTelemetry tracing (on by default) + append-only hash-chained audit log | ✅ |
+| Bounded, auditable multi-agent conversations | ✅ |
+| AI-assisted connector generator (`euroclaw-connectors` CLI) | ✅ |
+| Local LLM inference via Ollama | ✅ |
 
 ---
 
-## 🌐 Execution Modes: Local vs. Distributed Cluster
-EuroClaw separates the Orchestrator (decision-making) from the execution layer, allowing it to scale instantly from a single laptop to a 50-node data center cluster without rewriting code.
+## 🚀 Quickstart
 
-You control this via the `EXECUTION_MODE` variable in your `.env` file:
+```bash
+# 1. Clone and install
+git clone https://github.com/astream2018/euroclaw.git
+cd euroclaw
+python -m venv venv
+source venv/bin/activate           # Windows: .\venv\Scripts\activate
+pip install -e ".[dev]"
 
-### Mode 1: Local (Synchronous)
-Best for local development or single-server deployments. The Orchestrator waits and executes the tool locally.
-   ```env
-   EXECUTION_MODE="local"
-   ```
-### Mode 2: Distributed (Parallel Scaling)
-Best for production. The Orchestrator drops the tool request into a Redis queue. Background worker nodes grab the tasks, process them in parallel inside Firecracker VMs, and return the results.
-   ```
-   EXECUTION_MODE="distributed"
-   CELERY_BROKER_URL="redis://localhost:6379/0"
-   CELERY_RESULT_BACKEND="redis://localhost:6379/1"
-   ```
+# 2. Configure
+cp .env_example .env               # edit as needed
 
-Booting a Distributed Worker Node:
-Run this command on any secondary server connected to your Redis instance to spin up 4 parallel worker instances:
+# 3. Run the tests (no external services required)
+pytest tests/unit -q
 
-   ```
-   celery -A src.worker celery_app worker --loglevel=info --concurrency=4
-   ```
-🛡️ Enterprise Use Case: Zero-Trust Processing of Sensitive Profiles
-The Challenge:
-An organization needs to process, summarize, and categorize highly sensitive biographical data (e.g., personal histories, healthcare logs, or digital memorial profiles). Sending this raw, unencrypted narrative data to a US-based cloud API violates local GDPR and data sovereignty policies.
+# 4. Start the API
+python -m euroclaw                 # serves on http://localhost:8000
+#    docs at /docs, health at /healthz/liveness
+```
 
-The EuroClaw Solution:
+Use it programmatically:
 
-Data Ingestion: The sensitive text profile is submitted to the EuroClaw Orchestrator.
+```python
+from euroclaw import EuroclawOrchestrator
 
-Local Reasoning: The SovereignLLMGateway queries a local mistral model running on an air-gapped server (e.g., a Mac Mini M4 cluster) to determine what data needs to be extracted.
+orch = EuroclawOrchestrator(name="MyAgent")
+print(orch.handle_request("Summarize the latest EU AI Act guidance", roles=["analyst"]))
+```
 
-Isolated Execution: If the agent needs to run a data-transformation script, EuroClaw routes the task into a Firecracker MicroVM. The script executes, sanitizes the data, and the VM is instantly destroyed.
+> Reasoning requires a local model. See [Local LLM inference](#-local-llm-inference).
+> Without one, the gateway **fails closed** with an explicit error — it never
+> fabricates an answer or a tool call.
 
-Immutable Audit: Every single step—from the LLM reasoning to the hardware execution—is logged to the local OpenTelemetry Jaeger database, proving exactly how the data was handled without ever leaking it to an external network.
+---
 
-### 🛠️ Quick Start & Environment Configuration
-Clone the repository and configure your environment variables for core infrastructure, OIDC security, and enterprise messaging plugins.
+## 🧠 Architecture
 
-Key environment settings include:
-- REDIS_HOST for Redis-backed state and task execution
-- OTEL_EXPORTER_OTLP_ENDPOINT for optional telemetry export
-- EXECUTION_MODE for local or distributed execution
-- RATE_LIMIT_REQUESTS and RATE_LIMIT_WINDOW_SECONDS for API throttling
-- OIDC_ISSUER_URL and OIDC_AUDIENCE for enterprise authentication
+```
+euroclaw/
+├── app.py            FastAPI: async run API, SSE, RBAC-guarded endpoints, webhooks
+├── orchestrator.py   Reason→act→observe loop, RBAC + HITL + dispatch, audit
+├── rbac.py           Role → tool capability policy (env-overridable)
+├── security.py       OIDC/OAuth2 JWT validation with cached JWKS
+├── state.py          Redis-backed rate-limit / HITL / run store (+ in-mem fallback)
+├── llm_gateway.py    Sovereign local inference (fails closed)
+├── toolcall.py       Deterministic tool-call parser
+├── multi_agent.py    Bounded, role-specialized conversation DAG
+├── agent_loader.py   agents.yaml → AgentProfile
+├── sandbox/          Pluggable execution: subprocess (default) | firecracker (vsock)
+├── connectors/       AI-assisted connector generator + CLI (out-of-process tool)
+├── plugins/          Messaging (Slack/Teams/Telegram/WhatsApp/Email), web, files, MCP
+├── audit.py          Append-only, hash-chained audit ledger
+└── worker.py         Celery worker for distributed execution
+```
 
-   ``` Bash
-   # Clone the repository
-   git clone [https://github.com/astream2018/euroclaw.git](https://github.com/astream2018/euroclaw.git)
-   cd euroclaw
+The reasoning loop is genuinely wired: the LLM emits `TOOL_CALL: <tool> | Arguments: <args>`,
+the orchestrator parses it, checks RBAC, routes high-risk tools through HITL, executes in
+the sandbox, feeds the observation back, and repeats up to `MAX_TOOL_ITERATIONS`.
 
-   # Create your environment file
-   cp .env_example .env
+---
 
-   # Create a virtual environment and install dependencies
-   python -m venv venv
-   source venv/bin/activate  # On Windows use: .\venv\Scripts\activate
-   pip install -r requirements.txt
-   pip install -e .
-   ```
-## 🤖 Multi-Agent Conversations & Roleplay
-EuroClaw now supports role-aware multi-agent request handling through the orchestration API. You can send a persona plus a list of participants, and the backend will generate a concise transcript-style response for the conversation.
+## 🔐 Security & governance
 
-Example request payload:
+- **RBAC (enforced, not decorative):** every tool call is checked against a role→capability
+  policy ([`euroclaw/rbac.py`](euroclaw/rbac.py)). Roles come from the OIDC token
+  (`realm_access.roles`). Override per-deployment via `RBAC_POLICY`.
+- **Human-in-the-Loop:** high-risk tools (`execute_bash`, `send_external_email`, …) and MCP
+  queries pause and persist an approval request; resolve it via `POST /api/v1/hitl/callback`.
+- **Fail-closed inference:** the gateway raises `LLMUnavailableError` on failure — it never
+  invents commands (the previous `rm -rf` "fallback" is gone).
+- **Scoped MCP:** the MCP subprocess receives an explicit env allowlist, not the entire
+  parent environment.
+- **Audit:** every RBAC decision, HITL outcome, and tool execution is appended to a
+  hash-chained JSONL ledger (`AUDIT_DIR`) and emitted as an OpenTelemetry span.
+
+## 🧪 Sandboxing (honest isolation)
+
+`SANDBOX_BACKEND` selects the execution boundary:
+
+- **`subprocess`** (default): real, working isolation — temp working dir, minimized
+  environment, POSIX resource limits (CPU/memory/file-size), wall-clock timeout. This is a
+  **process-level** boundary, **not** a hardware/kernel boundary. Good for trusted-ish tools
+  and development.
+- **`firecracker`**: hardware-isolated microVM per task over `virtio-vsock`. Requires a
+  **KVM-enabled Linux host** (`/dev/kvm`) plus a kernel + rootfs image and a guest agent
+  listening on the vsock port. On non-KVM hosts it raises `SandboxUnavailable` telling you to
+  switch backends — it does not pretend to isolate.
+
+## 🌐 Execution modes
+
+- **`local`**: the orchestrator executes tools in-process (dev / single node).
+- **`distributed`**: tool requests are dispatched to Celery workers over Redis, each running
+  the identical RBAC + HITL + sandbox path.
+
+```bash
+celery -A euroclaw.worker celery_app worker --loglevel=info --concurrency=4
+```
+
+Rate-limit, HITL, and run state live in Redis, so limits and approvals are correct across
+replicas.
+
+---
+
+## 🔌 API (async, non-blocking)
+
+```http
+POST /api/v1/orchestrate           # returns { run_id, status } immediately
+GET  /api/v1/runs/{run_id}         # poll status + result
+GET  /api/v1/runs/{run_id}/events  # Server-Sent Events stream
+POST /api/v1/hitl/callback         # approve/deny a paused high-risk action
+GET  /healthz/liveness | /healthz/readiness
+```
+
+Add `?wait=true` to `orchestrate` for a synchronous response (handy for scripts/tests).
+
+Multi-agent request:
 
 ```json
 {
-  "user_id": "user_123",
-  "text": "Draft a launch plan for the new feature",
+  "text": "Draft a launch plan",
   "roleplay": { "persona": "executive sponsor" },
   "conversation": {
     "participants": [
@@ -122,157 +164,75 @@ Example request payload:
 }
 ```
 
-This backend is intentionally API-first. A dedicated web or desktop UI can be built in a separate repository and connected to the EuroClaw API for chat, workflow visualization, and roleplay management.
+Each participant gets its own role-scoped instruction; turns are bounded by `MAX_AGENT_TURNS`.
 
-## 🚀 Deployment Examples
-Two production-friendly deployment entrypoints are included:
-- [deploy/docker-compose.yml](deploy/docker-compose.yml) for a simple local or staging stack with Redis and the API service
-- [deploy/kubernetes.yaml](deploy/kubernetes.yaml) for a Kubernetes deployment with secrets, probes, and a service exposure
-- [helm/euroclaw](helm/euroclaw) for a lightweight Helm chart that packages the deployment for Kubernetes
-- [helm/euroclaw/values-production.yaml](helm/euroclaw/values-production.yaml) for a production-oriented Helm override
-- [.github/ISSUE_TEMPLATE/release-notes.md](.github/ISSUE_TEMPLATE/release-notes.md) as a release-notes template for deployment and rollout communication
+---
 
-Useful shortcuts:
-- `make deploy-compose` to launch the compose-based deployment stack
-- `make deploy-helm` to install or upgrade the Helm release
-- `bash scripts/smoke-test.sh` to run the core regression suite used for deployment smoke validation
+## 🧩 AI-assisted connectors
 
-Use the example environment file [.env_example](.env_example) as the baseline for secrets and runtime settings.
+Generate a new connector scaffold from a description (out-of-process; generated code is
+**untrusted** and marked `.pending-review` until you approve it):
 
-🚀 Developer Quick Start: Local LLM Inference
-EuroClaw is optimized to run fully offline using local LLMs. For local development, we recommend using Ollama as your sovereign model provider.
+```bash
+euroclaw-connectors generate --description "Fetch tickets from api.example.com" --out ./my_connector
+euroclaw-connectors validate ./my_connector
+```
 
-Apple Silicon (Mac Mini M4 / M-Series)
-Apple's unified memory architecture is exceptional for local AI inference, allowing you to run large models with high throughput.
+---
 
-Install Ollama:
+## 🖼️ Visual Canvas UI
 
-   ```Bash
-   brew install ollama
-   ollama serve &
-   ```
+A standalone drag-and-drop orchestration canvas lives in [`ui/`](ui/) (Vite + React +
+TypeScript). It talks to the core only over the REST/SSE API and holds no privilege of
+its own — every action carries the user's OIDC token and is re-authorized server-side.
 
-Install your model of choice:
-   ```Bash
-   ollama run mistral  # Or x/z-image-turbo, phi4, qwen3.5:9b etc.
-   ```
-Update your .env:
-   ```
-   LLM_PROVIDER="ollama"
-   LLM_ENDPOINT="http://localhost:11434"
-   DEFAULT_MODEL="mistral"
-   ```
-Windows (via WSL2)
-Install Ollama:
+```bash
+cd ui && npm install && npm run dev   # http://localhost:3000 (proxies to :8000)
+```
 
-   ```PowerShell
-   wsl --install
-   # Follow Ollama Linux installation inside WSL
-   ```
-Update your .env:
+## 🎓 Example: a scheduled branding agent
 
-   ```
-   LLM_PROVIDER="ollama"
-   # If Ollama is running natively on Windows, WSL2 accesses it via the host IP
-   LLM_ENDPOINT="[http://host.docker.internal:11434](http://host.docker.internal:11434)"
-   DEFAULT_MODEL="mistral"
-   ```
-## 🏗️ Building Apps: Your Workspace Structure
-When building custom AI agents with EuroClaw, structure your projects alongside the framework:
+A runnable example lives in [`examples/brand_agent/`](examples/brand_agent/)
+(`agents.yaml` + `brand_bot.py`). Load agents declaratively:
 
-Plaintext
-📁 my_projects/
-├── 📁 euroclaw/            <-- The Framework Engine
-└── 📁 my_instagram_agent/  <-- Your Custom App
-   ├── .env
-   ├── agents.yaml
-   └── instagram_bot.py
+```python
+from euroclaw.agent_loader import load_agents_from_yaml, get_profile
+loaded = load_agents_from_yaml("examples/brand_agent/agents.yaml")
+profile = get_profile(loaded, "BrandStrategist")
+```
 
-🎓 Walkthrough: Building an Automated Instagram Agent
-In this tutorial, we will build a real-world AI pipeline.
+---
 
-The Goal: Every day at 06:00 and 18:00, EuroClaw will design a branding image for our Open Source project. It will send the draft to Telegram for manual approval (Go/No-Go). If approved, it automatically posts to Instagram with generated hashtags.
+## 🖥️ Local LLM inference
 
-1. Configure the Application Environment
-Create a .env inside your my_instagram_agent folder:
+EuroClaw runs fully offline via [Ollama](https://ollama.com):
 
-   ```
-   LLM_PROVIDER="ollama"
-   LLM_ENDPOINT="http://localhost:11434"
-   DEFAULT_MODEL="mistral"
+```bash
+brew install ollama        # macOS; Linux/Windows-WSL: see ollama docs
+ollama serve &
+ollama run mistral
+```
 
-   # Webhooks for your custom tools
-   TELEGRAM_WEBHOOK_URL="[https://api.telegram.org/bot](https://api.telegram.org/bot)<YOUR_TOKEN>/sendMessage"
-   INSTAGRAM_API_URL="[https://graph.facebook.com/v18.0/me/media](https://graph.facebook.com/v18.0/me/media)"
-   ```
-2. Define Your Agents
-Create your agent profiles in agents.yaml:
+```env
+LOCAL_LLM_ENDPOINT=http://localhost:11434
+EUROCLAW_MODEL=mistral
+```
 
-   ```YAML
-   agents:
-   - name: "BrandStrategist"
-      role: "Open Source Marketing Director"
-      goal: "Generate high-converting image prompts and hashtags for our daily open-source software posts."
-      backstory: "You are an expert in developer relations and open-source branding. You know exactly what visuals appeal to software engineers."
-      llm_config:
-         provider: "ollama"
-         model: "mistral"
-         endpoint_env_var: "LLM_ENDPOINT"
-      allowed_tools:
-         - "generate_image"
-         - "request_telegram_approval"
-         - "post_to_instagram"
-      cron_schedule:
-         - "06:00"
-         - "18:00"
-   ```
+---
 
-3. Write Your Application Logic
-Create instagram_bot.py:
+## 🚢 Deployment
 
-   ```Python
-   import time
-   import schedule
-   from dotenv import load_dotenv
+- [`deploy/docker-compose.yml`](deploy/docker-compose.yml) — API + Redis
+- [`docker-compose.yml`](docker-compose.yml) — full dev stack (Redis, Jaeger, Keycloak)
+- [`deploy/kubernetes.yaml`](deploy/kubernetes.yaml) / [`helm/euroclaw`](helm/euroclaw) — Kubernetes
+- See [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) and
+  [`docs/PRODUCTION_READINESS_AUDIT.md`](docs/PRODUCTION_READINESS_AUDIT.md).
 
-   # Import the EuroClaw engine
-   from euroclaw.orchestrator import EuroclawOrchestrator
-   from euroclaw.agent_loader import load_agents_from_yaml
+The container base image (`python:3.12-slim`) may carry upstream OS CVEs; pin/patch it to
+your organization's hardened base for regulated deployments.
 
-   # 1. Load the local environment and agent configuration
-   load_dotenv()
-   agents_config = load_agents_from_yaml("agents.yaml")
+---
 
-   # Assuming load_agents returns a dict or list; adapt based on your loader logic
-   # For this example, we grab the first matching agent
-   strategist_profile = next(agent for agent in agents_config["agents"] if agent["name"] == "BrandStrategist")
+## 📜 License
 
-   # 2. Initialize the EuroClaw Orchestrator
-   orchestrator = EuroclawOrchestrator()
-   orchestrator.name = strategist_profile["name"]
-
-   def run_campaign():
-      print(f"\n🚀 Starting Social Media Campaign...")
-      prompt = "Create an image concept for Open Source Security and request Telegram approval."
-
-      result = orchestrator.handle_request(prompt)
-      print("\n--- CAMPAIGN RESULT ---")
-      print(result)
-
-   # 3. Dynamically load the schedule from your YAML file
-   execution_times = strategist_profile.get("cron_schedule", [])
-
-   print(f"Loading schedule for {orchestrator.name}...")
-   for target_time in execution_times:
-      schedule.every().day.at(target_time).do(run_campaign)
-      print(f" - Scheduled daily run at {target_time}")
-
-   while True:
-      schedule.run_pending()
-      time.sleep(60)
-   ```
-
-4. Execute
-   ```
-   python instagram_bot.py
-   ```
+Apache 2.0.

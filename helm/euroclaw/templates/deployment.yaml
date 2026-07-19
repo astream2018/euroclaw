@@ -24,6 +24,8 @@ spec:
           env:
             - name: EXECUTION_MODE
               value: {{ .Values.env.EXECUTION_MODE | quote }}
+            - name: SANDBOX_BACKEND
+              value: {{ .Values.env.SANDBOX_BACKEND | quote }}
             - name: API_VERSION
               value: {{ .Values.env.API_VERSION | quote }}
             - name: RATE_LIMIT_REQUESTS

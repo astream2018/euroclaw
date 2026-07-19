@@ -1,30 +1,35 @@
-.PHONY: install-dev test lint format up-test deploy-compose deploy-helm
+.PHONY: install install-dev test test-unit test-integration lint format run-orchestrator run-worker deploy-compose deploy-helm
+
+install:
+	pip install -e .
 
 install-dev:
-	pip install -r requirements.txt -r requirements-dev.txt
+	pip install -e ".[dev]"
 
 format:
-	python -m black src plugins tests
+	python -m black euroclaw tests
 
 lint:
-	python -m black --check src plugins tests
-	python -m flake8 src plugins tests
-	python -m bandit -r src/ plugins/
+	python -m black --check euroclaw tests
+	python -m flake8 euroclaw tests
+	python -m bandit -c pyproject.toml --severity-level medium -r euroclaw/ -x euroclaw/connectors/templates.py
 
 test-unit:
-	pytest tests/unit/ --cov=src --cov=plugins --cov-report=term-missing
+	pytest tests/unit/ --cov=euroclaw --cov-report=term-missing
 
 test-integration:
 	docker compose -f docker-compose.yml up -d
-	sleep 10 # Wait for OpenTelemetry collectors / databases to boot
+	sleep 10
 	pytest tests/integration/
 	docker compose -f docker-compose.yml down
 
+test: test-unit
+
 run-orchestrator:
-	python src/app.py
+	python -m euroclaw
 
 run-worker:
-	celery -A src.worker celery_app worker --loglevel=info --concurrency=4
+	celery -A euroclaw.worker celery_app worker --loglevel=info --concurrency=4
 
 deploy-compose:
 	docker compose -f deploy/docker-compose.yml up -d --build

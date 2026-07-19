@@ -1,8 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from src.app import app
-from src.config import validate_settings
+from euroclaw.app import app
+from euroclaw.settings import validate_settings
 
 
 def test_health_endpoints_are_available():
@@ -17,18 +17,22 @@ def test_health_endpoints_are_available():
     assert liveness.json()["status"] == "ok"
 
 
-def test_config_validation_rejects_blank_required_values(monkeypatch):
+def test_validation_rejects_invalid_execution_mode(monkeypatch):
+    monkeypatch.setenv("EXECUTION_MODE", "banana")
+    with pytest.raises(ValueError, match="EXECUTION_MODE"):
+        validate_settings()
+
+
+def test_validation_requires_redis_in_distributed_mode(monkeypatch):
+    monkeypatch.setenv("EXECUTION_MODE", "distributed")
     monkeypatch.setenv("REDIS_HOST", "")
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
-
     with pytest.raises(ValueError, match="REDIS_HOST"):
         validate_settings()
 
 
-def test_settings_defaults_to_safe_values(monkeypatch):
-    monkeypatch.delenv("REDIS_HOST", raising=False)
-    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+def test_defaults_are_valid_in_local_mode(monkeypatch):
     monkeypatch.delenv("EXECUTION_MODE", raising=False)
-
-    with pytest.raises(ValueError, match="REDIS_HOST"):
-        validate_settings()
+    monkeypatch.delenv("REDIS_HOST", raising=False)
+    monkeypatch.delenv("SANDBOX_BACKEND", raising=False)
+    settings = validate_settings()
+    assert settings.execution_mode == "local"

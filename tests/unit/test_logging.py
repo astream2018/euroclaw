@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from src.app import app
+from euroclaw.app import app
 
 
 def test_request_id_header_is_echoed_back():

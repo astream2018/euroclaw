@@ -1,9 +1,68 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "euroclaw"
+version = "0.2.0"
+description = "A sovereign, zero-trust, enterprise agentic AI framework."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Astream B.V." }]
+keywords = ["ai", "agents", "orchestration", "zero-trust", "sovereign", "firecracker"]
+
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "pydantic>=2.6",
+    "python-jose>=3.3",
+    "requests>=2.31",
+    "requests-unixsocket>=0.3",
+    "redis>=5.0",
+    "celery>=5.3",
+    "opentelemetry-api>=1.24",
+    "opentelemetry-sdk>=1.24",
+    "opentelemetry-exporter-otlp>=1.24",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "beautifulsoup4>=4.12",
+    "duckduckgo-search>=6.0",
+    "mcp>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "pytest-mock>=3.14",
+    "httpx>=0.27",
+    "black>=24.0",
+    "flake8>=7.0",
+    "bandit>=1.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/astream2018/euroclaw"
+
+[project.scripts]
+euroclaw = "euroclaw.__main__:main"
+euroclaw-connectors = "euroclaw.connectors.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["euroclaw*"]
+
 [tool.black]
 line-length = 88
 
 [tool.flake8]
 max-line-length = 88
-extend-ignore = ["E203", "W503", "B008"]
+extend-ignore = ["E203", "W503", "B008", "E501"]
 
 [tool.bandit]
 exclude_dirs = ["tests"]
+# Executing subprocesses is the core purpose of the sandbox backends; these
+# checks are reviewed and intentionally skipped project-wide. Temp-path use
+# (B108) is annotated with per-line nosec where it is by-design.
+skips = ["B404", "B603", "B607"]

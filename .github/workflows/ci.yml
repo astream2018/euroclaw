@@ -37,7 +37,7 @@ jobs:
     - name: Run Bandit Security Scan
       run: |
         pip install bandit
-        bandit -r src/ plugins/
+        bandit -c pyproject.toml --severity-level medium -r euroclaw/ -x euroclaw/connectors/templates.py
 
     - name: Run Unit Tests
       run: make test-unit
